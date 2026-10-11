@@ -481,4 +481,4 @@ case3_sensors:
     .word 0x00500000  /* vy=0, wz=0, goal_dist=80, goal_heading=0 */
 
 /* Include auto-generated trained weights */
-.include "/workspace/sw/firmware/nav_weights.inc"
+.include "nav_weights.inc"

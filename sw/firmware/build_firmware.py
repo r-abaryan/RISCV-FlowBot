@@ -69,7 +69,7 @@ def binary_target(x):
     return "binary"
 
 if __name__ == "__main__":
-    asm_src = sys.argv[1] if len(sys.argv) > 1 else "/workspace/sw/firmware/soc_firmware.s"
+    asm_src = sys.argv[1] if len(sys.argv) > 1 else "sw/firmware/soc_firmware.s"
     out_name = sys.argv[2] if len(sys.argv) > 2 else os.path.splitext(asm_src)[0]
     success = build_firmware(asm_src, out_name)
     sys.exit(0 if success else 1)

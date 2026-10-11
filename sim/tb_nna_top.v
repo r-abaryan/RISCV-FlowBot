@@ -1,6 +1,7 @@
 // ============================================================================
 // Testbench: tb_nna_top
 // Tests memory-mapped bus writes to NNA, layer execution, and output readback
+// Hardened with watchdog timer, strict assertions, and fatal exit codes.
 // ============================================================================
 
 `timescale 1ns / 1ps
@@ -34,6 +35,12 @@ module tb_nna_top;
 
     // Clock generator: 50 MHz (20ns period)
     always #10 clk = ~clk;
+
+    // Simulation Watchdog Timer (100,000 cycles / 2ms)
+    initial begin
+        #2000000;
+        $fatal(1, "[TB FATAL] Watchdog timeout in tb_nna_top! NNA simulation hung.");
+    end
 
     // Bus write task
     task write_word(input [31:0] addr, input [31:0] data);
@@ -98,8 +105,7 @@ module tb_nna_top;
         read_word(32'h4000_0008, rdata);
         $display("CONFIG_DIM readback: 0x%08x (expected 0x00080010)", rdata);
         if (rdata != 32'h0008_0010) begin
-            $display("ERROR: DIM mismatch!");
-            $finish;
+            $fatal(1, "[TB FATAL] CONFIG_DIM register mismatch!");
         end
 
         // Test 2: Load Input activation vector (4 words = 16 bytes)
@@ -155,12 +161,11 @@ module tb_nna_top;
         if (rdata[15:0] == 16'h507f) begin
             $display("SUCCESS: Neuron 0 (127/0x7F) and Neuron 1 (80/0x50) match exact expected values!");
         end else begin
-            $display("ERROR: Output mismatch! Got 0x%08x, expected 0x0000507f", rdata);
-            $finish;
+            $fatal(1, "[TB FATAL] Output mismatch! Got 0x%08x, expected 0x0000507f", rdata);
         end
 
         $display("=== TB_NNA_TOP: ALL TESTS PASSED SUCCESSFULLY! ===");
-        $finish;
+        $finish(0);
     end
 
 endmodule

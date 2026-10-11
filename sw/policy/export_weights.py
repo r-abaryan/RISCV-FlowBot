@@ -115,5 +115,5 @@ def generate_c_header(filepath):
     print(f"Generated {filepath}")
 
 if __name__ == "__main__":
-    generate_asm_include("/workspace/sw/firmware/nav_weights.inc")
-    generate_c_header("/workspace/sw/include/nav_weights.h")
+    generate_asm_include("sw/firmware/nav_weights.inc")
+    generate_c_header("sw/include/nav_weights.h")
