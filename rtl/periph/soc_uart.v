@@ -40,9 +40,11 @@ module soc_uart (
                     case (wb_adr_i[7:0])
                         8'h00: begin
                             tx_byte <= wb_dat_i[7:0];
+`ifndef SYNTHESIS
                             // In simulation: stream directly to stdout
                             $write("%c", wb_dat_i[7:0]);
                             $fflush();
+`endif
                         end
                         default: ;
                     endcase

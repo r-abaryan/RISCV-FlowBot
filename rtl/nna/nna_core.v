@@ -136,7 +136,13 @@ module nna_core (
                     act_val = shifted_acc[7:0];
             end
             default: begin
-                act_val = shifted_acc[7:0];
+                // Safe default: saturate to full INT8 signed bounds [-128, +127]
+                if (shifted_acc < -49'sd128)
+                    act_val = 8'sh80;
+                else if (shifted_acc > 49'sd127)
+                    act_val = 8'sh7f;
+                else
+                    act_val = shifted_acc[7:0];
             end
         endcase
     end
