@@ -1,7 +1,9 @@
 // ============================================================================
 // Module: safety_filter
 // Description: Deterministic Hardware Safety Watchdog and Interlock Module
-// Automatically isolates actuators if software hangs or E-Stop is asserted
+// Automatically isolates actuators if software hangs or E-Stop is asserted.
+// Hardened against concurrent race conditions, illegal clearing while E-stop
+// is held active, and bad heartbeat injection.
 // ============================================================================
 
 `timescale 1ns / 1ps
@@ -46,7 +48,7 @@ module safety_filter (
             flag_wdt_expired <= 1'b0;
             flag_tripped     <= 1'b0;
         end else begin
-            // Watchdog Countdown
+            // Watchdog Countdown & Physical E-Stop latching
             if (reg_enable && !flag_tripped) begin
                 if (pin_estop_button) begin
                     flag_tripped <= 1'b1;
@@ -64,7 +66,8 @@ module safety_filter (
                     8'h00: begin // SAFETY_CTRL
                         if (bus_wstrb[0]) begin
                             reg_enable <= bus_wdata[0];
-                            if (bus_wdata[1]) begin // Clear trip
+                            // Hardened: Refuse to clear trip if physical E-Stop button is actively depressed!
+                            if (bus_wdata[1] && !pin_estop_button) begin
                                 flag_tripped     <= 1'b0;
                                 flag_wdt_expired <= 1'b0;
                                 wdt_countdown    <= reg_timeout_val;
