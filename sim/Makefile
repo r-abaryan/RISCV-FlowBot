@@ -26,9 +26,9 @@ RTL_SOC_SRCS = $(ROOT_DIR)/rtl/cpu/picorv32.v \
                $(RTL_SAFETY_SRCS) \
                $(ROOT_DIR)/rtl/soc_top.v
 
-.PHONY: all test_py test_rtl test_nna test_safety test_soc test_nav clean firmware
+.PHONY: all test_py test_nna_corners test_rtl test_nna test_nna_corners_sim test_safety test_safety_adv test_soc test_nav clean firmware
 
-all: test_py test_rtl test_nav
+all: test_py test_nna_corners test_rtl test_nav
 
 firmware:
 	@echo "--- Assembling Bare-metal Firmware ---"
@@ -43,15 +43,29 @@ test_py:
 	@echo "--- [3/3] Running End-to-End Navigation Policy Simulation ---"
 	PYTHONPATH=$(ROOT_DIR)/sw/model:$(ROOT_DIR)/sw/safety $(PYTHON) $(ROOT_DIR)/sw/model/robot_policy_e2e.py
 
+test_nna_corners:
+	@echo "--- Running Python INT8 Accelerator Corner-Case & Fuzzing Suite ---"
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_nna_corners.py
+
 test_nna:
 	@echo "--- Building and Running NNA Accelerator Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(SIM_DIR)/tb_nna_top.vvp $(RTL_NNA_SRCS) $(SIM_DIR)/tb_nna_top.v
 	$(VVP) $(SIM_DIR)/tb_nna_top.vvp
 
+test_nna_corners_sim:
+	@echo "--- Building and Running NNA RTL Corner-Case Verification Testbench ---"
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(SIM_DIR)/tb_nna_corner_cases.vvp $(RTL_NNA_SRCS) $(SIM_DIR)/tb_nna_corner_cases.v
+	$(VVP) $(SIM_DIR)/tb_nna_corner_cases.vvp
+
 test_safety:
 	@echo "--- Building and Running Safety Filter Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(SIM_DIR)/tb_safety_filter.vvp $(RTL_SAFETY_SRCS) $(SIM_DIR)/tb_safety_filter.v
 	$(VVP) $(SIM_DIR)/tb_safety_filter.vvp
+
+test_safety_adv:
+	@echo "--- Building and Running Adversarial Safety Filter Testbench ---"
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(SIM_DIR)/tb_safety_adversarial.vvp $(RTL_SAFETY_SRCS) $(SIM_DIR)/tb_safety_adversarial.v
+	$(VVP) $(SIM_DIR)/tb_safety_adversarial.vvp
 
 test_soc: firmware
 	@echo "--- Building and Running Full SoC End-to-End Testbench ---"
@@ -63,7 +77,7 @@ test_nav: firmware
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/robot_nav.hex\" -o $(SIM_DIR)/tb_soc_nav.vvp $(RTL_SOC_SRCS) $(SIM_DIR)/tb_soc_nav.v
 	$(VVP) $(SIM_DIR)/tb_soc_nav.vvp
 
-test_rtl: test_nna test_safety test_soc
+test_rtl: test_nna test_nna_corners_sim test_safety test_safety_adv test_soc
 
 clean:
 	rm -f $(SIM_DIR)/*.vvp $(SIM_DIR)/*.vcd
