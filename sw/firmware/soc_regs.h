@@ -1,0 +1,80 @@
+// ============================================================================
+// File: soc_regs.h
+// Description: Peripheral Base Addresses and MMIO Register Offsets for Robot SoC
+// ============================================================================
+
+#ifndef SOC_REGS_H
+#define SOC_REGS_H
+
+#include <stdint.h>
+
+#define REG32(addr) (*((volatile uint32_t *)(addr)))
+
+// ----------------------------------------------------------------------------
+// Base Addresses
+// ----------------------------------------------------------------------------
+#define ROM_BASE             0x00000000
+#define RAM_BASE             0x20000000
+#define NNA_BASE             0x40000000
+#define TIMER_BASE           0x50000000
+#define UART_BASE            0x50000100
+#define PWM_BASE             0x50000200
+#define SAFETY_BASE          0x50000600
+
+// ----------------------------------------------------------------------------
+// rv_nna Accelerator Registers (0x4000_0000)
+// ----------------------------------------------------------------------------
+#define NNA_REG_CTRL         REG32(NNA_BASE + 0x000)
+#define NNA_REG_STATUS       REG32(NNA_BASE + 0x004)
+#define NNA_REG_CFG_DIM      REG32(NNA_BASE + 0x008)
+#define NNA_REG_CFG_SCALE    REG32(NNA_BASE + 0x00C)
+#define NNA_REG_CFG_BIAS     REG32(NNA_BASE + 0x010)
+#define NNA_REG_SP_WR_ADDR   REG32(NNA_BASE + 0x014)
+#define NNA_REG_SP_WR_DATA   REG32(NNA_BASE + 0x018)
+#define NNA_REG_SP_RD_ADDR   REG32(NNA_BASE + 0x01C)
+#define NNA_REG_SP_RD_DATA   REG32(NNA_BASE + 0x020)
+#define NNA_REG_PERF_CYCLES  REG32(NNA_BASE + 0x024)
+
+#define NNA_CTRL_START_BIT   (1 << 0)
+#define NNA_CTRL_RESET_BIT   (1 << 1)
+#define NNA_CTRL_RELU_BIT    (1 << 2)
+
+#define NNA_STATUS_BUSY_BIT  (1 << 0)
+#define NNA_STATUS_DONE_BIT  (1 << 1)
+
+// ----------------------------------------------------------------------------
+// Deterministic Hardware Safety Filter Registers (0x5000_0600)
+// ----------------------------------------------------------------------------
+#define SAFETY_REG_CTRL      REG32(SAFETY_BASE + 0x000)
+#define SAFETY_REG_TIMEOUT   REG32(SAFETY_BASE + 0x004)
+#define SAFETY_REG_HEARTBEAT REG32(SAFETY_BASE + 0x008)
+#define SAFETY_REG_STATUS    REG32(SAFETY_BASE + 0x00C)
+#define SAFETY_REG_FORCE_DIS REG32(SAFETY_BASE + 0x010)
+
+#define SAFETY_HEARTBEAT_KEY 0x5AFEC0DE
+#define SAFETY_DISARM_BIT    (1 << 0)
+
+// ----------------------------------------------------------------------------
+// Timer Registers (0x5000_0000)
+// ----------------------------------------------------------------------------
+#define TIMER_REG_MTIME_LO   REG32(TIMER_BASE + 0x000)
+#define TIMER_REG_MTIME_HI   REG32(TIMER_BASE + 0x004)
+#define TIMER_REG_CMP_LO     REG32(TIMER_BASE + 0x008)
+#define TIMER_REG_CMP_HI     REG32(TIMER_BASE + 0x00C)
+#define TIMER_REG_CTRL       REG32(TIMER_BASE + 0x010)
+
+// ----------------------------------------------------------------------------
+// UART Diagnostic Console Registers (0x5000_0100)
+// ----------------------------------------------------------------------------
+#define UART_REG_TXDATA      REG32(UART_BASE + 0x000)
+#define UART_REG_STATUS      REG32(UART_BASE + 0x004)
+
+// ----------------------------------------------------------------------------
+// Motor PWM Registers (0x5000_0200)
+// ----------------------------------------------------------------------------
+#define PWM_REG_CTRL         REG32(PWM_BASE + 0x000)
+#define PWM_REG_LEFT_DUTY    REG32(PWM_BASE + 0x004)
+#define PWM_REG_RIGHT_DUTY   REG32(PWM_BASE + 0x008)
+#define PWM_REG_STATUS       REG32(PWM_BASE + 0x00C)
+
+#endif // SOC_REGS_H
