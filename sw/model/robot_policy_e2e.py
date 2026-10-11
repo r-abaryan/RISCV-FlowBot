@@ -5,6 +5,9 @@ Demonstrates complete closed-loop navigation step matching the SoC architecture.
 """
 
 import sys
+import os
+sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../safety'))
 import math
 import random
 from reference_model import quantize_layer, ACT_RELU, ACT_CLIP
