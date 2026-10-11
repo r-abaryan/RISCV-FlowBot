@@ -1,0 +1,14 @@
+*.vvp
+*.vcd
+__pycache__/
+*.pyc
+.ssh/
+*.bundle
+*.bin
+*.elf
+*.o
+*.dump
+sim/tb_soc_nav
+sim/tb_soc_top
+sim/tb_safety_filter
+sim/tb_nna_top
