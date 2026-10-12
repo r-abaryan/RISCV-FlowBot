@@ -74,6 +74,7 @@ module nna_regs (
     reg [31:0] weight_buf [0:255];  // 256 words = 1024 bytes
     reg [31:0] out_buf    [0:31];   // 32 words = 128 bytes
 
+`ifndef SYNTHESIS
     integer init_idx;
     initial begin
         for (init_idx = 0; init_idx < 32; init_idx = init_idx + 1) in_buf[init_idx] = 32'h0;
@@ -81,6 +82,7 @@ module nna_regs (
         for (init_idx = 0; init_idx < 256; init_idx = init_idx + 1) weight_buf[init_idx] = 32'h0;
         for (init_idx = 0; init_idx < 32; init_idx = init_idx + 1) out_buf[init_idx] = 32'h0;
     end
+`endif
 
     // ------------------------------------------------------------------------
     // CSR Registers
@@ -161,36 +163,45 @@ module nna_regs (
                         end
                         default: ;
                     endcase
-                end else if (is_in_buf) begin
-                    if (bus_wstrb[0]) in_buf[bus_addr[6:2]][7:0]   <= bus_wdata[7:0];
-                    if (bus_wstrb[1]) in_buf[bus_addr[6:2]][15:8]  <= bus_wdata[15:8];
-                    if (bus_wstrb[2]) in_buf[bus_addr[6:2]][23:16] <= bus_wdata[23:16];
-                    if (bus_wstrb[3]) in_buf[bus_addr[6:2]][31:24] <= bus_wdata[31:24];
-                end else if (is_bias) begin
-                    if (bus_wstrb[0]) bias_buf[bus_addr[7:2]][7:0]   <= bus_wdata[7:0];
-                    if (bus_wstrb[1]) bias_buf[bus_addr[7:2]][15:8]  <= bus_wdata[15:8];
-                    if (bus_wstrb[2]) bias_buf[bus_addr[7:2]][23:16] <= bus_wdata[23:16];
-                    if (bus_wstrb[3]) bias_buf[bus_addr[7:2]][31:24] <= bus_wdata[31:24];
-                end else if (is_weight) begin
-                    if (bus_wstrb[0]) weight_buf[bus_addr[9:2]][7:0]   <= bus_wdata[7:0];
-                    if (bus_wstrb[1]) weight_buf[bus_addr[9:2]][15:8]  <= bus_wdata[15:8];
-                    if (bus_wstrb[2]) weight_buf[bus_addr[9:2]][23:16] <= bus_wdata[23:16];
-                    if (bus_wstrb[3]) weight_buf[bus_addr[9:2]][31:24] <= bus_wdata[31:24];
                 end
             end
+        end
+    end
 
-            // Hardware Core Output Writeback (Port B Write to Output Buffer)
-            if (core_out_we) begin
-                if (core_out_wstrb[0]) out_buf[core_out_waddr][7:0]   <= core_out_wdata[7:0];
-                if (core_out_wstrb[1]) out_buf[core_out_waddr][15:8]  <= core_out_wdata[15:8];
-                if (core_out_wstrb[2]) out_buf[core_out_waddr][23:16] <= core_out_wdata[23:16];
-                if (core_out_wstrb[3]) out_buf[core_out_waddr][31:24] <= core_out_wdata[31:24];
+    // ------------------------------------------------------------------------
+    // Internal SRAM Scratchpad Memory Write Ports (Synchronous Clock, No Reset)
+    // ------------------------------------------------------------------------
+    always @(posedge clk) begin
+        if (bus_req && bus_we) begin
+            if (is_in_buf) begin
+                if (bus_wstrb[0]) in_buf[bus_addr[6:2]][7:0]   <= bus_wdata[7:0];
+                if (bus_wstrb[1]) in_buf[bus_addr[6:2]][15:8]  <= bus_wdata[15:8];
+                if (bus_wstrb[2]) in_buf[bus_addr[6:2]][23:16] <= bus_wdata[23:16];
+                if (bus_wstrb[3]) in_buf[bus_addr[6:2]][31:24] <= bus_wdata[31:24];
+            end else if (is_bias) begin
+                if (bus_wstrb[0]) bias_buf[bus_addr[7:2]][7:0]   <= bus_wdata[7:0];
+                if (bus_wstrb[1]) bias_buf[bus_addr[7:2]][15:8]  <= bus_wdata[15:8];
+                if (bus_wstrb[2]) bias_buf[bus_addr[7:2]][23:16] <= bus_wdata[23:16];
+                if (bus_wstrb[3]) bias_buf[bus_addr[7:2]][31:24] <= bus_wdata[31:24];
+            end else if (is_weight) begin
+                if (bus_wstrb[0]) weight_buf[bus_addr[9:2]][7:0]   <= bus_wdata[7:0];
+                if (bus_wstrb[1]) weight_buf[bus_addr[9:2]][15:8]  <= bus_wdata[15:8];
+                if (bus_wstrb[2]) weight_buf[bus_addr[9:2]][23:16] <= bus_wdata[23:16];
+                if (bus_wstrb[3]) weight_buf[bus_addr[9:2]][31:24] <= bus_wdata[31:24];
             end
+        end
 
-            // Hardware Auto-Copy: Output to Input Buffer for multi-layer chaining
-            if (core_copy_step) begin
-                in_buf[core_copy_addr] <= out_buf[core_copy_addr];
-            end
+        // Hardware Core Output Writeback (Port B Write to Output Buffer)
+        if (core_out_we) begin
+            if (core_out_wstrb[0]) out_buf[core_out_waddr][7:0]   <= core_out_wdata[7:0];
+            if (core_out_wstrb[1]) out_buf[core_out_waddr][15:8]  <= core_out_wdata[15:8];
+            if (core_out_wstrb[2]) out_buf[core_out_waddr][23:16] <= core_out_wdata[23:16];
+            if (core_out_wstrb[3]) out_buf[core_out_waddr][31:24] <= core_out_wdata[31:24];
+        end
+
+        // Hardware Auto-Copy: Output to Input Buffer for multi-layer chaining
+        if (core_copy_step) begin
+            in_buf[core_copy_addr] <= out_buf[core_copy_addr];
         end
     end
 

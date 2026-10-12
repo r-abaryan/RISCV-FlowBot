@@ -156,7 +156,24 @@ module nna_core (
     // Main Control FSM
     // ------------------------------------------------------------------------
     always @(posedge clk or negedge rst_n) begin
-        if (!rst_n || core_soft_rst) begin
+        if (!rst_n) begin
+            state            <= ST_IDLE;
+            core_busy        <= 1'b0;
+            core_done        <= 1'b0;
+            core_err         <= 1'b0;
+            core_cycle_count <= 32'd0;
+            cur_cycles       <= 32'd0;
+            irq_pulse        <= 1'b0;
+            m_cnt            <= 6'd0;
+            k_cnt            <= 8'd0;
+            copy_cnt         <= 5'd0;
+            acc              <= 32'sd0;
+            core_out_we      <= 1'b0;
+            core_out_waddr   <= 5'd0;
+            core_out_wstrb   <= 4'b0000;
+            core_copy_step   <= 1'b0;
+            core_copy_addr   <= 5'd0;
+        end else if (core_soft_rst) begin
             state            <= ST_IDLE;
             core_busy        <= 1'b0;
             core_done        <= 1'b0;

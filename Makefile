@@ -45,7 +45,7 @@ sim_all: sim_nna sim_safety sim_nna_corners sim_safety_adv sim_soc sim_nav
 synth_check:
 	@echo "--- Running Yosys RTL Syntax & Elaboration Check ---"
 	@if command -v $(YOSYS) >/dev/null 2>&1; then \
-		$(YOSYS) -p "read_verilog -I$(ROOT_DIR)/rtl $(ROOT_DIR)/rtl/nna/*.v $(ROOT_DIR)/rtl/safety/*.v $(ROOT_DIR)/rtl/periph/*.v $(ROOT_DIR)/rtl/mem/*.v $(ROOT_DIR)/rtl/bus/*.v $(ROOT_DIR)/rtl/cpu/picorv32.v $(ROOT_DIR)/rtl/soc_top.v; hierarchy -check -top soc_top; check"; \
+		$(YOSYS) -p "read_verilog -DSYNTHESIS -I$(ROOT_DIR)/rtl $(ROOT_DIR)/rtl/nna/*.v $(ROOT_DIR)/rtl/safety/*.v $(ROOT_DIR)/rtl/periph/*.v $(ROOT_DIR)/rtl/mem/*.v $(ROOT_DIR)/rtl/bus/*.v $(ROOT_DIR)/rtl/cpu/picorv32.v $(ROOT_DIR)/rtl/soc_top.v; hierarchy -check -top soc_top; check"; \
 	else \
 		echo "[INFO] yosys not detected in PATH, skipping gate-level synthesis elaboration check."; \
 	fi

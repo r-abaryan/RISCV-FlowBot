@@ -1,39 +1,41 @@
-# Makefile for simulation and verification
-# Path portable: works whether executed from repo root or sim/ directory
+# Sim Makefile for RISC-V Robot SoC
 
-SIM_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-ROOT_DIR := $(abspath $(SIM_DIR)/..)
+ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
+PYTHON ?= python3
 IVERILOG ?= iverilog
 VVP ?= vvp
-PYTHON ?= python3
+YOSYS ?= yosys
 
-RTL_NNA_SRCS = $(ROOT_DIR)/rtl/nna/nna_mac4.v \
-               $(ROOT_DIR)/rtl/nna/nna_regs.v \
-               $(ROOT_DIR)/rtl/nna/nna_core.v \
-               $(ROOT_DIR)/rtl/nna/nna_top.v
+RTL_SRCS = \
+	$(ROOT_DIR)/rtl/nna/nna_mac4.v \
+	$(ROOT_DIR)/rtl/nna/nna_regs.v \
+	$(ROOT_DIR)/rtl/nna/nna_core.v \
+	$(ROOT_DIR)/rtl/nna/nna_top.v \
+	$(ROOT_DIR)/rtl/safety/safety_filter.v \
+	$(ROOT_DIR)/rtl/periph/soc_uart.v \
+	$(ROOT_DIR)/rtl/periph/soc_timer.v \
+	$(ROOT_DIR)/rtl/periph/soc_pwm.v \
+	$(ROOT_DIR)/rtl/bus/soc_interconnect.v \
+	$(ROOT_DIR)/rtl/mem/soc_rom.v \
+	$(ROOT_DIR)/rtl/mem/soc_ram.v \
+	$(ROOT_DIR)/rtl/cpu/picorv32.v \
+	$(ROOT_DIR)/rtl/soc_top.v
 
-RTL_SAFETY_SRCS = $(ROOT_DIR)/rtl/safety/safety_filter.v
-
-RTL_SOC_SRCS = $(ROOT_DIR)/rtl/cpu/picorv32.v \
-               $(ROOT_DIR)/rtl/bus/soc_interconnect.v \
-               $(ROOT_DIR)/rtl/mem/soc_rom.v \
-               $(ROOT_DIR)/rtl/mem/soc_ram.v \
-               $(ROOT_DIR)/rtl/periph/soc_timer.v \
-               $(ROOT_DIR)/rtl/periph/soc_uart.v \
-               $(ROOT_DIR)/rtl/periph/soc_pwm.v \
-               $(RTL_NNA_SRCS) \
-               $(RTL_SAFETY_SRCS) \
-               $(ROOT_DIR)/rtl/soc_top.v
-
-.PHONY: all test_py test_nna_corners test_rtl test_nna test_nna_corners_sim test_safety test_safety_adv test_soc test_nav clean firmware
+.PHONY: all sim firmware test_py test_nna_corners test_nna test_safety test_soc test_nav test_nna_corners_sim test_safety_adv synth_check clean
 
 all: test_py test_nna_corners test_rtl test_nav
 
 firmware:
 	@echo "--- Assembling Bare-metal Firmware ---"
 	$(PYTHON) $(ROOT_DIR)/sw/firmware/assemble.py $(ROOT_DIR)/sw/firmware/soc_firmware.s $(ROOT_DIR)/sw/firmware/firmware.hex
-	cd $(ROOT_DIR)/sw/firmware && riscv-none-elf-as -march=rv32im -mabi=ilp32 robot_nav_firmware.s -o robot_nav.o && riscv-none-elf-ld -m elf32lriscv -T linker.ld robot_nav.o -o robot_nav.elf && riscv-none-elf-objcopy -O binary robot_nav.elf robot_nav.bin && $(PYTHON) make_hex.py robot_nav.bin robot_nav.hex && riscv-none-elf-objdump -d robot_nav.elf > robot_nav.dump
+	@if command -v riscv-none-elf-as >/dev/null 2>&1; then \
+		cd $(ROOT_DIR)/sw/firmware && riscv-none-elf-as -march=rv32im -mabi=ilp32 robot_nav_firmware.s -o robot_nav.o && riscv-none-elf-ld -m elf32lriscv -T linker.ld robot_nav.o -o robot_nav.elf && riscv-none-elf-objcopy -O binary robot_nav.elf robot_nav.bin && $(PYTHON) make_hex.py robot_nav.bin robot_nav.hex && riscv-none-elf-objdump -d robot_nav.elf > robot_nav.dump; \
+	elif [ -f $(ROOT_DIR)/sw/firmware/robot_nav.hex ]; then \
+		echo "Using pre-built robot_nav.hex (riscv-none-elf-as not found in PATH)"; \
+	else \
+		echo "Error: riscv-none-elf-as not found and robot_nav.hex missing" >&2; exit 1; \
+	fi
 
 test_py:
 	@echo "--- [1/3] Running INT8 Reference Model Test ---"
@@ -49,35 +51,55 @@ test_nna_corners:
 
 test_nna:
 	@echo "--- Building and Running NNA Accelerator Testbench ---"
-	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(SIM_DIR)/tb_nna_top.vvp $(RTL_NNA_SRCS) $(SIM_DIR)/tb_nna_top.v
-	$(VVP) $(SIM_DIR)/tb_nna_top.vvp
-
-test_nna_corners_sim:
-	@echo "--- Building and Running NNA RTL Corner-Case Verification Testbench ---"
-	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(SIM_DIR)/tb_nna_corner_cases.vvp $(RTL_NNA_SRCS) $(SIM_DIR)/tb_nna_corner_cases.v
-	$(VVP) $(SIM_DIR)/tb_nna_corner_cases.vvp
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_nna_top.vvp \
+		$(ROOT_DIR)/rtl/nna/nna_mac4.v \
+		$(ROOT_DIR)/rtl/nna/nna_regs.v \
+		$(ROOT_DIR)/rtl/nna/nna_core.v \
+		$(ROOT_DIR)/rtl/nna/nna_top.v \
+		$(ROOT_DIR)/sim/tb_nna_top.v
+	$(VVP) $(ROOT_DIR)/sim/tb_nna_top.vvp
 
 test_safety:
 	@echo "--- Building and Running Safety Filter Testbench ---"
-	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(SIM_DIR)/tb_safety_filter.vvp $(RTL_SAFETY_SRCS) $(SIM_DIR)/tb_safety_filter.v
-	$(VVP) $(SIM_DIR)/tb_safety_filter.vvp
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_safety_filter.vvp \
+		$(ROOT_DIR)/rtl/safety/safety_filter.v \
+		$(ROOT_DIR)/sim/tb_safety_filter.v
+	$(VVP) $(ROOT_DIR)/sim/tb_safety_filter.vvp
+
+test_nna_corners_sim:
+	@echo "--- Building and Running NNA RTL Corner-Case Verification Testbench ---"
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_nna_corner_cases.vvp \
+		$(ROOT_DIR)/rtl/nna/nna_mac4.v \
+		$(ROOT_DIR)/rtl/nna/nna_regs.v \
+		$(ROOT_DIR)/rtl/nna/nna_core.v \
+		$(ROOT_DIR)/rtl/nna/nna_top.v \
+		$(ROOT_DIR)/sim/tb_nna_corner_cases.v
+	$(VVP) $(ROOT_DIR)/sim/tb_nna_corner_cases.vvp
 
 test_safety_adv:
 	@echo "--- Building and Running Adversarial Safety Filter Testbench ---"
-	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(SIM_DIR)/tb_safety_adversarial.vvp $(RTL_SAFETY_SRCS) $(SIM_DIR)/tb_safety_adversarial.v
-	$(VVP) $(SIM_DIR)/tb_safety_adversarial.vvp
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_safety_adversarial.vvp \
+		$(ROOT_DIR)/rtl/safety/safety_filter.v \
+		$(ROOT_DIR)/sim/tb_safety_adversarial.v
+	$(VVP) $(ROOT_DIR)/sim/tb_safety_adversarial.vvp
 
 test_soc: firmware
-	@echo "--- Building and Running Full SoC End-to-End Testbench ---"
-	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/firmware.hex\" -o $(SIM_DIR)/tb_soc_top.vvp $(RTL_SOC_SRCS) $(SIM_DIR)/tb_soc_top.v
-	$(VVP) $(SIM_DIR)/tb_soc_top.vvp
+	@echo "--- Building and Running Full SoC Integration Testbench ---"
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/firmware.hex\" \
+		-o $(ROOT_DIR)/sim/tb_soc_top.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_top.v
+	$(VVP) $(ROOT_DIR)/sim/tb_soc_top.vvp
 
 test_nav: firmware
-	@echo "--- Building and Running Full Navigation SoC Testbench ---"
-	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/robot_nav.hex\" -o $(SIM_DIR)/tb_soc_nav.vvp $(RTL_SOC_SRCS) $(SIM_DIR)/tb_soc_nav.v
-	$(VVP) $(SIM_DIR)/tb_soc_nav.vvp
+	@echo "--- Building and Running End-to-End Robot Navigation Testbench ---"
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/robot_nav.hex\" \
+		-o $(ROOT_DIR)/sim/tb_soc_nav.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v
+	$(VVP) $(ROOT_DIR)/sim/tb_soc_nav.vvp
 
-test_rtl: test_nna test_nna_corners_sim test_safety test_safety_adv test_soc
+test_rtl: test_nna test_safety test_nna_corners_sim test_safety_adv test_soc
+
+synth_check:
+	@echo "--- Running Yosys RTL Syntax & Elaboration Check ---"
+	$(YOSYS) -p "read_verilog -I$(ROOT_DIR)/rtl $(RTL_SRCS); hierarchy -check -top soc_top; check"
 
 clean:
-	rm -f $(SIM_DIR)/*.vvp $(SIM_DIR)/*.vcd
+	rm -f $(ROOT_DIR)/sim/*.vvp $(ROOT_DIR)/sim/*.vcd

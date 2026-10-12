@@ -26,6 +26,7 @@ module soc_rom #(
     reg [31:0] rom_mem [0:MEM_SIZE_WORDS-1];
     integer i;
 
+`ifndef SYNTHESIS
     initial begin
         for (i = 0; i < MEM_SIZE_WORDS; i = i + 1) begin
             rom_mem[i] = 32'h00000013; // NOP (addi x0, x0, 0)
@@ -34,6 +35,13 @@ module soc_rom #(
             $readmemh(INIT_FILE, rom_mem);
         end
     end
+`else
+    initial begin
+        if (INIT_FILE != "") begin
+            $readmemh(INIT_FILE, rom_mem);
+        end
+    end
+`endif
 
     wire [10:0] word_addr = wb_adr_i[12:2];
 
