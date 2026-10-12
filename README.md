@@ -37,7 +37,7 @@ The SoC pairs an **RV32IM CPU core (PicoRV32 baseline / lowRISC Ibex reference)*
 
 ### Key Architectural Tenets
 1. **CPU for General Control & Safety:** The RISC-V CPU coordinates sensor polling (IMU, distance sensors, odometry), feature normalization, scheduling, communication, and deterministic safety verification.
-2. **Memory-Mapped Neural Accelerator (`rv_nna`):** Accelerates dense matrix-vector multiplications ($Y = W \cdot X + B$) with per-layer fixed-point requantization and activations. Decoupled via MMIO to allow standard GCC toolchains without compiler patches.
+2. **Memory-Mapped Neural Accelerator (`rv_nna`):** Accelerates dense matrix-vector multiplications (Y = W * X + B) with per-layer fixed-point requantization and activations. Decoupled via MMIO to allow standard GCC toolchains without compiler patches.
 3. **Deterministic Safety Supervisor:** The neural policy is treated as an *unverified advisor*. Its velocity proposals must pass through envelope bounding, dynamic slew-rate acceleration limiters, and time-to-collision (TTC) braking before reaching motor drivers. A hardware watchdog automatically disarms motors if software fails.
 
 ---
@@ -46,7 +46,7 @@ The SoC pairs an **RV32IM CPU core (PicoRV32 baseline / lowRISC Ibex reference)*
 
 To maintain engineering rigor, capabilities in this repository are categorized into strict maturity tiers:
 - **Baseline Hardware & RTL:** **SIMULATED & SYNTHESIZED** (All modules verified with 10 testbenches in Icarus Verilog; synthesized in Yosys to Lattice ECP5 at 2,686 LUTs, 4 DSPs).
-- **Baseline Firmware & Navigation:** **SIMULATED** (Proves the complete CPU $\rightarrow$ MMIO NNA $\rightarrow$ Safety Interlock $\rightarrow$ PWM pipeline in `tb_soc_nav.v` using a *synthetic heuristic policy*).
+- **Baseline Firmware & Navigation:** **SIMULATED** (Proves the complete CPU -> MMIO NNA -> Safety Interlock -> PWM pipeline in `tb_soc_nav.v` using a *synthetic heuristic policy*).
 - **Genuine RL Policy & Closed-Loop Robotics:** **READY FOR EXECUTION** (Governed by the 6-phase Master Roadmap).
 
 ### Master Project Roadmap Overview
@@ -194,6 +194,10 @@ Detailed engineering specifications and reports are provided in the `docs/` dire
 | [10. Hardening & Verification Report](docs/10_hardening_report.md) | Engineering Hardening Phase completion report, audit matrices, and bug resolution |
 | [11. Measured FPGA Synthesis Report](docs/11_fpga_synthesis_report.md) | Real Yosys synthesis breakdown, cell counts, DSP utilization, and Fmax analysis |
 | [12. Readiness & Post-Merge Audit](docs/12_readiness_and_audit_report.md) | Phase 1 readiness assessment, host compute audit, and regression verification |
+| [13. Phase 1 RL Training Report](docs/13_phase1_rl_training_report.md) | Pure-NumPy DAgger imitation policy training and 2D unicycle benchmark |
+| [14. Phase 2 Quantization Report](docs/14_phase2_quantization_report.md) | INT8 range-aware quantization fidelity analysis and bit-exact RTL verification |
+| [15. Phase 3 SoC Firmware Integration](docs/15_phase3_soc_integration_report.md) | Genuine weights in bare-metal RISC-V firmware and end-to-end SoC verification |
+| [16. Phase 4 Closed-Loop Co-Sim Report](docs/16_phase4_closed_loop_cosim_report.md) | Multi-step co-simulation coupling 2D physics with cycle-accurate Verilog SoC |
 | [Hardening Roadmap](docs/HARDENING_ROADMAP.md) | 100% completed pre-RL engineering hardening checklist |
 
 ---
