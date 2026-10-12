@@ -12,3 +12,4 @@ sim/tb_soc_nav
 sim/tb_soc_top
 sim/tb_safety_filter
 sim/tb_nna_top
+abc.history
