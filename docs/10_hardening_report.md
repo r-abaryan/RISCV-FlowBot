@@ -19,6 +19,7 @@ Key hardening milestones achieved:
 4. **Adversarial Hardware Safety Interlock Verification**:
    - `sim/tb_safety_adversarial.v`: Corrupted heartbeat key injection, concurrent E-stop race condition override, fail-safe register disablement (`reg_enable=0`), and asynchronous reset glitch immunity.
 5. **Architectural Vulnerability Resolution**: Identified and resolved a safety flaw where software could clear a latched trip while the physical emergency stop bumper remained actively compressed. Physical E-stop assertion now enforces unconditional hardware trip locking.
+6. **Real FPGA Synthesis & Quantitative Metrics**: Synthesized across Lattice ECP5 and generic gate libraries with Yosys. Measured exact cell counts and identified key block RAM inference optimization.
 
 ---
 
@@ -74,19 +75,50 @@ Key hardening milestones achieved:
 
 ---
 
-## 4. Test Suite Execution & Verification
+## 4. Measured FPGA Synthesis & Resource Metrics
+
+As documented in `docs/11_fpga_synthesis_report.md`, real synthesis was executed with Yosys against the Lattice ECP5 target (`synth_ecp5`):
+
+| Subsystem Module | Target Arch | LUT4 Count | Flip-Flops (TRELLIS_FF) | DSP Slices (MULT18X18D) | Block RAM (DP16KD) |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **PicoRV32 RV32IM CPU** | Lattice ECP5 | **1,314** | **573** | **0** | **0** (32 DPR16X4) |
+| **NNA 4-way SIMD MAC** | Lattice ECP5 | **88** | **0** | **4** | **0** |
+| **NNA Compute Engine** | Lattice ECP5 | **1,002** | **139** | **8** | **0** |
+| **Deterministic Safety Interlock** | Lattice ECP5 | **244** | **67** | **0** | **0** |
+| **System SRAM Controller (64 KB)** | Lattice ECP5 | **7** | **1** | **0** | **32** |
+| **Wishbone Interconnect (1x6)** | Lattice ECP5 | **355** | **1** | **0** | **0** |
+| **Dual PWM Motor Controller** | Lattice ECP5 | **73** | **66** | **0** | **0** |
+| **SoC 64-bit Timer** | Lattice ECP5 | **247** | **163** | **0** | **0** |
+| **UART Controller** | Lattice ECP5 | **25** | **17** | **0** | **0** |
+
+### Architectural BRAM Finding
+In the current prototype, internal scratchpad buffers (1.5 KB total) in `nna_regs.v` use combinational read ports to provide zero-wait-state bus and core reads. Because FPGA block RAMs require registered read addresses, Yosys maps these buffers to 12,288 flip-flops. Adding a 1-cycle registered read latency in the next revision will map the scratchpad into 1–2 DP16KD Block RAM tiles, reducing NNA slice count by >90%.
+
+---
+
+## 5. Architectural Audit of Claims
+
+1. **"Zero-Wait-State Inference"**: Clarified to *single-cycle MAC pipeline throughput*. The 4-way SIMD dot product computes 4 INT8 multiply-accumulates per clock cycle after initial scratchpad address setup. Total inference time for an $M \times K$ layer is:
+   $$T_{\text{layer}} = M \times \left( \left\lceil \frac{K}{4} \right\rceil + 1 \right) \text{ cycles}$$
+2. **"Deterministic Hardware Safety Override"**: Fully audited and verified. Physical E-stop button assertion overrides motor PWM outputs within the same clock cycle ($< 20 \text{ ns}$ at 50 MHz), completely bypassing CPU firmware and Wishbone bus transactions.
+3. **"Quantization Accuracy"**: Verified bit-exact parity between Python fixed-point model and Verilog RTL requantization logic across 1,000 randomized Monte Carlo test vectors.
+
+---
+
+## 6. Test Suite Execution & Verification
 
 Run the full hardened test suite with:
 
 ```bash
-# Run all software and RTL regressions
+# Run all software, corner-case, adversarial, and full-system regressions
 make all
 
 # Or run individual sub-suites:
 make test_py          # Python reference, safety layer, E2E policy
 make test_nna_corners # Python INT8 1,000-vector fuzzing suite
-make sim_all          # All Icarus Verilog testbenches
+make sim_all          # All 6 Icarus Verilog testbenches
 make sim_nav          # Full-system end-to-end robot navigation simulation
+make synth_check      # Full SoC Yosys elaboration & synthesis syntax check
 ```
 
 All 6 testbenches run deterministically, report explicit PASS statuses, and exit with code `0`.
