@@ -24,8 +24,9 @@ def build_firmware(asm_file, out_prefix, linker_script=None):
     dump_file = out_prefix + ".dump"
 
     print(f"--- Compiling {asm_file} ---")
+    inc_dir = os.path.dirname(os.path.abspath(asm_file))
     # 1. Assemble
-    as_cmd = ["riscv-none-elf-as", "-march=rv32im", "-mabi=ilp32", "-o", obj_file, asm_file]
+    as_cmd = ["riscv-none-elf-as", "-march=rv32im", "-mabi=ilp32", "-I", inc_dir, "-o", obj_file, asm_file]
     res = subprocess.run(as_cmd, capture_output=True, text=True)
     if res.returncode != 0:
         print(f"Assembler error:\n{res.stderr}")
@@ -39,8 +40,6 @@ def build_firmware(asm_file, out_prefix, linker_script=None):
         return False
 
     # 3. Objcopy to binary
-    oc_cmd = ["riscv-none-elf-objcopy", "-O", binary_target(elf_file), elf_file, bin_file]
-    # Standard objcopy binary
     subprocess.run(["riscv-none-elf-objcopy", "-O", "binary", elf_file, bin_file], check=True)
 
     # 4. Generate disassembly
@@ -64,9 +63,6 @@ def build_firmware(asm_file, out_prefix, linker_script=None):
 
     print(f"Build successful: {hex_file} ({len(bin_data)} bytes, {num_words} words)")
     return True
-
-def binary_target(x):
-    return "binary"
 
 if __name__ == "__main__":
     asm_src = sys.argv[1] if len(sys.argv) > 1 else "sw/firmware/soc_firmware.s"

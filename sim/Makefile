@@ -30,7 +30,7 @@ firmware:
 	@echo "--- Assembling Bare-metal Firmware ---"
 	$(PYTHON) $(ROOT_DIR)/sw/firmware/assemble.py $(ROOT_DIR)/sw/firmware/soc_firmware.s $(ROOT_DIR)/sw/firmware/firmware.hex
 	@if command -v riscv-none-elf-as >/dev/null 2>&1; then \
-		cd $(ROOT_DIR)/sw/firmware && riscv-none-elf-as -march=rv32im -mabi=ilp32 robot_nav_firmware.s -o robot_nav.o && riscv-none-elf-ld -m elf32lriscv -T linker.ld robot_nav.o -o robot_nav.elf && riscv-none-elf-objcopy -O binary robot_nav.elf robot_nav.bin && $(PYTHON) make_hex.py robot_nav.bin robot_nav.hex && riscv-none-elf-objdump -d robot_nav.elf > robot_nav.dump; \
+		cd $(ROOT_DIR)/sw/firmware && riscv-none-elf-as -march=rv32im -mabi=ilp32 robot_nav_firmware.s -o robot_nav.o && riscv-none-elf-ld -m elf32lriscv -T linker.ld robot_nav.o -o robot_nav.elf && riscv-none-elf-objcopy -O binary robot_nav.elf robot_nav.bin && $(PYTHON) make_hex.py robot_nav.bin robot_nav.hex && (riscv-none-elf-objdump -d robot_nav.elf > robot_nav.dump 2>/dev/null || true); \
 	elif [ -f $(ROOT_DIR)/sw/firmware/robot_nav.hex ]; then \
 		echo "Using pre-built robot_nav.hex (riscv-none-elf-as not found in PATH)"; \
 	else \
