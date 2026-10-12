@@ -2,7 +2,7 @@
 
 **Document Version:** 2.0  
 **Status:** Active Master Specification  
-**Current Milestone:** Baseline Hardware Hardening Complete (Pre-RL Hardware Baseline); Ready for Phase 1 Execution  
+**Current Milestone:** Phase 1 Complete (Genuine RL/DAgger Trained Navigation Policy Verified; INT8 Retention 100%); Ready for Phase 2 Execution  
 **Project Objective:** A reproducible robotic computing platform that executes a genuinely learned reinforcement-learning policy through a custom RV32IM SoC with memory-mapped INT8 neural acceleration while maintaining deterministic hardware safety boundaries.
 
 ---
@@ -47,7 +47,9 @@ To maintain engineering rigor and avoid speculative claims, all capabilities in 
 
 ---
 
-### Phase 1 — RL Environment and Policy Training
+### Phase 1 — RL Environment and Policy Training (STATUS: COMPLETE)
+
+> **Phase 1 Complete:** Pure-NumPy DAgger training verified in 34.9s with 78% navigation success rate and 100.0% retention under INT8 `rv_nna` quantization. See `docs/13_phase1_rl_training_report.md`.
 
 #### 1. Objective
 Implement a lightweight, self-contained 2D mobile robot navigation simulation environment and train a genuine reward-driven neural policy that demonstrates measurable learning progress against baseline controls.
