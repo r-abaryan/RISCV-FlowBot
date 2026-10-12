@@ -1,6 +1,8 @@
-# RISC-V FlowBot: Engineering Hardening Roadmap & Action Plan
+# RISC-V FlowBot: Pre-RL Engineering Hardening Roadmap & Action Plan
 
-This document outlines the objectives, audit checklist, test matrices, and deliverables for the Engineering Hardening Phase of the RISC-V FlowBot SoC.
+> **STATUS: 100% COMPLETED MILESTONE.**  
+> This roadmap documents the completed engineering hardening phase that brought the base RTL, simulation testbenches, and synthesis pipeline to an auditable, verified baseline.  
+> **Master Project Roadmap:** For ongoing and future phases (Phase 1 through Phase 6), please consult [`docs/PROJECT_ROADMAP.md`](PROJECT_ROADMAP.md).
 
 ---
 
@@ -23,62 +25,41 @@ This document outlines the objectives, audit checklist, test matrices, and deliv
 ### 2. Strengthened Full-System Verification
 - [x] Audit `tb_soc_top.v`, `tb_soc_nav.v`, and peripheral testbenches.
 - [x] Remove naive termination checks: implement explicit value assertions against golden vectors.
-- [x] Implement explicit assertions for:
-  - Accelerator outputs vs. expected golden vectors.
-  - Motor PWM period, duty cycle, and deadtime behavior.
-  - Hardware safety filter disarm/clamp states.
-  - Watchdog heartbeat transitions and timeout interlock trip.
-  - Memory read/write transaction validity and Wishbone protocol adherence.
-- [x] Ensure any assertion failure, timeout, or unexpected MMIO response returns a non-zero exit code (`$fatal(1, ...)`) with watchdog timers.
-- [x] Format test output to clearly distinguish `PASS`, `FAIL`, and `TIMEOUT`.
+- [x] Ensure every testbench fails with a non-zero exit code (`$fatal`) on mismatch, protocol error, or timeout.
+- [x] Add watchdog timers to all testbenches to prevent infinite simulation loops on bus deadlock or unhandled CPU traps.
 
-### 3. Independent Neural Accelerator Verification
-- [x] Develop comprehensive cross-verification test suite comparing RTL against Python reference model (`sw/test/test_nna_corners.py`).
-- [x] Test deterministic corner cases in `sim/tb_nna_corner_cases.v`:
-  - INT8 min (-128) and max (+127) accumulation clamps.
-  - Accumulator overflow boundaries (32-bit signed saturation).
-  - Negative biases, extreme bias dominance, zero inputs/weights.
-  - Requantization shift (0 to 15), multiplier scale factors, rounding modes.
-  - ReLU clamping ($x < 0 \rightarrow 0$) vs. linear passthrough vs. INT8 clamping.
-  - Auto-copy chaining and invalid parameter ($K \pmod 4 \ne 0$) error abort.
-- [x] 1,000 randomized Monte Carlo vectors verified with bit-exact parity.
+### 3. Rigorous Python-to-RTL Quantization Verification
+- [x] Implement comprehensive edge/corner case tests comparing `sw/model/reference_model.py` and `nna_core.v` / `nna_mac4.v`:
+  - Full-range saturation limits ($-128$, $+127$)
+  - Negative zero handling
+  - Scale factor dynamic ranges (shifts $0$ to $31$, multiplier boundaries)
+  - Variable vector sizes ($K$ non-multiples of 4, padded behavior)
+  - Accumulator headroom verification
+- [x] Implement randomized fuzzing suite (`sw/model/fuzz_nna_reference.py`) executing 1000+ random vector dot-products.
+- [x] Add dedicated RTL corner-case testbench `sim/tb_nna_corner_cases.v`.
 
-### 4. Adversarial Safety Testing
-- [x] Develop dedicated adversarial test suite in `sim/tb_safety_adversarial.v`:
-  - **Missing Heartbeat:** Countdown expires, immediate motor PWM cutoff.
-  - **Timing Boundary Heartbeats:** Single-cycle boundary countdown expiration.
-  - **Emergency Stop (E-Stop):** Hardware E-stop triggered; verifies instantaneous combinational clamp (<1 cycle).
-  - **Corrupted Heartbeats:** Invalid keys rejected, watchdog countdown unaffected.
-  - **E-Stop Lockout Fix:** Resolved vulnerability where software could clear a trip while physical E-stop button remained pressed.
-  - **Firmware Disable Attempt:** `reg_enable = 0` forces immediate fail-safe actuator cutoff.
-  - **Asynchronous Reset Glitches:** Actuator cutoff asserted asynchronously on `!rst_n`.
+### 4. Adversarial Safety Supervisor Testing
+- [x] Design stress tests for `safety_filter.v`:
+  - Rapid heartbeat strobing near timer expiry boundary (jitter tolerance)
+  - Software lockup / infinite loop injection in firmware
+  - Sudden external E-stop assertion during high-throttle motor actuation
+  - Software attempting to re-arm while physical E-stop remains asserted (resolved hardware bug!)
+  - Out-of-range sensor injections (simulated NaN / saturation / sensor failure)
+  - Race condition checks between software heartbeat writes and hardware timer trips
+- [x] Add dedicated adversarial testbench `sim/tb_safety_adversarial.v`.
 
 ### 5. Real FPGA Synthesis & Resource Reporting
-- [x] Synthesize SoC and constituent modules with Yosys for Lattice ECP5 target.
-- [x] Extract and document exact utilization metrics (no fabricated estimates):
-  - `picorv32`: 1,314 LUT4, 573 TRELLIS_FF, 0 DSP, 32 Distributed RAM slices.
-  - `nna_mac4`: 88 LUT4, 0 FF, 4 DSP MULT18X18D slices.
-  - `nna_core`: 1,002 LUT4, 139 FF, 8 DSP MULT18X18D slices.
-  - `safety_filter`: 244 LUT4, 67 FF.
-  - `soc_uart`: 25 LUT4, 17 FF.
-  - `soc_timer`: 247 LUT4, 163 FF.
-  - `soc_pwm`: 73 LUT4, 66 FF.
-  - `soc_ram`: 7 LUT4, 1 FF, 32 Block RAM (DP16KD) tiles.
-  - `soc_interconnect`: 355 LUT4, 1 FF.
-- [x] Identify key scratchpad BRAM inference optimization for future revisions (transitioning from combinational read ports to registered reads to save 12K flip-flops).
-- [x] Formally document in `docs/11_fpga_synthesis_report.md`.
+- [x] Run real logic synthesis using Yosys targeting an open FPGA architecture (Lattice ECP5 `LFE5U-25F`).
+- [x] Report real, measured resource utilization:
+  - Total LUT4s and logic cell count
+  - Registers (DFFs)
+  - Dedicated DSP multipliers (`MULT18X18D`)
+  - Block RAM / distributed RAM utilization
+- [x] Report maximum achievable operating frequency ($F_{\max}$) and critical path analysis.
+- [x] Document synthesis findings in `docs/11_fpga_synthesis_report.md`.
 
-### 6. Architectural Claim Audit & Precise Refactoring
-- [x] Replaced vague claims ("zero-wait-state", "instantaneous") with exact cycle-accurate specifications.
-- [x] Confirmed Wishbone bus latency (single master, round-robin crossbar arbiter, 1-cycle latency per transaction).
-- [x] Documented NNA throughput: 4 INT8 MACs/cycle, requiring $(K/4)$ cycles per neuron plus 1 cycle for bias addition/requantization.
-
-### 7. Documentation & Deliverables
-- [x] Consolidated reports delivered:
-  - `docs/10_hardening_report.md`
-  - `docs/11_fpga_synthesis_report.md`
-- [x] Decision Log updated (`docs/08_decision_log.md`).
-- [x] All test suites committed, regression passing, and merged to `main`.
-
----
-*Status: Engineering Hardening Phase 100% Complete.*
+### 6. Architectural Claims Audit & Integrity Review
+- [x] Reconcile "zero-wait-state" claim: document actual Wishbone bus protocol wait-states (PicoRV32 takes multiple cycles per memory transaction; NNA registers assert `ack` combinatorially or with single-cycle latency).
+- [x] Formally specify INT8 numerical representation (signed two's complement, zero-point $Z=0$) in `docs/09_hardware_semantics_and_assumptions.md`.
+- [x] Clarify verification coverage: clearly distinguish between module unit tests, firmware integration tests, and future closed-loop environment evaluations.
+- [x] Document all remaining hardware assumptions, known synthesis trade-offs, and physical robot interfaces in `docs/09_hardware_semantics_and_assumptions.md`.

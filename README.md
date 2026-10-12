@@ -42,11 +42,34 @@ The SoC pairs an **RV32IM CPU core (PicoRV32 baseline / lowRISC Ibex reference)*
 
 ---
 
-## 2. Directory Structure
+## 2. Project Status & Capability Maturity
+
+To maintain engineering rigor, capabilities in this repository are categorized into strict maturity tiers:
+- **Baseline Hardware & RTL:** **SIMULATED & SYNTHESIZED** (All modules verified with 10 testbenches in Icarus Verilog; synthesized in Yosys to Lattice ECP5 at 2,686 LUTs, 4 DSPs).
+- **Baseline Firmware & Navigation:** **SIMULATED** (Proves the complete CPU $\rightarrow$ MMIO NNA $\rightarrow$ Safety Interlock $\rightarrow$ PWM pipeline in `tb_soc_nav.v` using a *synthetic heuristic policy*).
+- **Genuine RL Policy & Closed-Loop Robotics:** **READY FOR EXECUTION** (Governed by the 6-phase Master Roadmap).
+
+### Master Project Roadmap Overview
+
+Detailed specifications, acceptance criteria, and evidence requirements are formalized in [`docs/PROJECT_ROADMAP.md`](docs/PROJECT_ROADMAP.md):
+
+| Phase | Milestone Name | Objective & Scope | Status |
+| :---: | :--- | :--- | :---: |
+| **Phase 1** | **RL Environment & Policy Training** | Lightweight 2D unicycle simulator; train genuine reward-driven policy (ARS/PG); benchmark vs random/heuristic baselines | **READY TO START** |
+| **Phase 2** | **INT8 Quantization & Validation** | Map trained float32 policy to exact `rv_nna` INT8 specs; bit-exact verification against Python reference | Planned |
+| **Phase 3** | **Firmware & SoC Integration** | Embed trained weights in bare-metal RISC-V firmware; execute full multi-step inference in simulated SoC | Planned |
+| **Phase 4** | **Closed-Loop Robotics Evaluation** | Co-simulate SoC RTL + 2D environment; measure episode success rate, collisions, latency & safety interventions | Planned |
+| **Phase 5** | **FPGA Timing Closure & BRAM Fix** | Refactor scratchpad memory to infer true Block RAM (EBR); place-and-route & static timing analysis ($\ge 25\text{ MHz}$) | Planned |
+| **Phase 6** | **Physical Robot Integration** | Interface physical LiDAR/IMU/H-bridge; execute supervised autonomous navigation with physical E-stop certification | Planned |
+
+---
+
+## 3. Directory Structure
 
 ```
 .
 ├── docs/                             # Comprehensive Architecture & Engineering Reports
+│   ├── PROJECT_ROADMAP.md            # Master 6-Phase Project Roadmap & Engineering Gates
 │   ├── 01_system_architecture.md     # SoC architecture, subsystem roles & block diagram
 │   ├── 02_cpu_selection.md           # Evaluation of RV32 cores & lowRISC Ibex justification
 │   ├── 03_memory_map.md              # Address space layout and peripheral allocation
@@ -56,9 +79,10 @@ The SoC pairs an **RV32IM CPU core (PicoRV32 baseline / lowRISC Ibex reference)*
 │   ├── 07_fpga_and_verification.md   # RTL breakdown, verification, FPGA targets & risks
 │   ├── 08_decision_log.md            # Architecture trade-offs and decision log
 │   ├── 09_hardware_semantics_and_assumptions.md # Numerical invariants & hardware semantics
-│   ├── 10_hardening_report.md        # Comprehensive hardening, corner tests & audit report
+│   ├── 10_hardening_report.md        # Engineering Hardening Phase completion report
 │   ├── 11_fpga_synthesis_report.md   # Measured Yosys Lattice ECP5 synthesis metrics
-│   └── HARDENING_ROADMAP.md          # 100% complete engineering hardening checklist
+│   ├── 12_readiness_and_audit_report.md # Phase 1 readiness assessment & compute audit
+│   └── HARDENING_ROADMAP.md          # Completed pre-RL engineering hardening checklist
 ├── rtl/                              # Hardware RTL Source Files
 │   ├── soc_pkg.sv                    # Global parameters, memory map addresses, CSR defs
 │   ├── cpu/
@@ -78,58 +102,42 @@ The SoC pairs an **RV32IM CPU core (PicoRV32 baseline / lowRISC Ibex reference)*
 │   │   ├── nna_mac4.v                # 4-way parallel signed INT8 multiplier & adder tree
 │   │   └── nna_core.v                # Compute sequencing FSM, accumulator & requantizer
 │   ├── safety/                       # Hardware Safety Interlock
-│   │   └── safety_filter.v           # Heartbeat timer watchdog & E-stop actuator disarm
-│   └── soc_top.v                     # Complete SoC integration top-level
-├── sim/                              # Simulation and Verification Testbenches
-│   ├── Makefile                      # Automated test runner with non-zero exit codes
-│   ├── tb_nna_top.v                  # RTL testbench for rv_nna accelerator registers
-│   ├── tb_nna_corner_cases.v         # Hardened INT8 saturation & corner-case testbench
-│   ├── tb_safety.v                   # Baseline watchdog & E-stop interlock testbench
-│   ├── tb_safety_adversarial.v       # Hardened adversarial safety stress & race testbench
-│   ├── tb_soc_top.v                  # Full SoC system testbench (PicoRV32 + firmware)
-│   └── tb_soc_nav.v                  # End-to-end 16->8->2 navigation simulation
-├── sw/                               # Software, Drivers, Models, and Firmware
-│   ├── hal/
-│   │   ├── soc_regs.h                # C hardware peripheral register headers
-│   │   └── robot_drivers.h           # Device drivers for NNA, PWM, UART, and Safety
-│   ├── model/
-│   │   ├── reference_model.py        # Bit-exact golden Python model for INT8 inference
-│   │   └── robot_policy_e2e.py       # End-to-end multi-layer robot policy pipeline
-│   ├── policy/
-│   │   └── nav_policy.py             # 16->8->2 RL obstacle avoidance policy
-│   ├── safety/
-│   │   └── safety_layer.py           # Python reference implementation of safety filter
-│   ├── test/
-│   │   └── test_nna_corners.py       # 1000-vector INT8 corner fuzzing test suite
-│   └── firmware/
-│       ├── assemble.py               # Two-pass RV32IM assembler tool
-│       ├── soc_firmware.s            # Baseline boot & hardware diagnostic firmware
-│       ├── firmware.hex              # Assembled Boot ROM machine code image
-│       ├── robot_nav_firmware.s      # Complete autonomous robot navigation firmware
-│       └── robot_nav.hex             # Assembled navigation policy ROM image
-├── CHECKPOINT_REPORT.md              # Engineering checkpoint report
-├── Makefile                          # Top-level project build & test orchestration
-└── README.md                         # Project documentation
+│   │   └── safety_filter.v           # Watchdog countdown, token refresh & E-stop interlock
+│   └── soc_top.v                     # Top-level synthesizable SoC integration wrapper
+├── sw/                               # Software, Firmware & Verification Models
+│   ├── model/                        # Bit-exact reference models & test vector generators
+│   ├── policy/                       # Synthetic verification policy & weight export
+│   ├── safety/                       # Algorithmic deterministic safety supervisor
+│   ├── firmware/                     # Bare-metal RISC-V assembly & C HAL headers
+│   └── env/                          # (Phase 1) 2D kinematic navigation simulation
+├── sim/                              # Icarus Verilog Simulation Testbenches
+│   ├── tb_soc_top.v                  # Full SoC boot & diagnostic testbench
+│   ├── tb_soc_nav.v                  # Full SoC end-to-end autonomous navigation testbench
+│   ├── tb_nna_top.v                  # Neural accelerator register & MAC verification
+│   ├── tb_nna_corner_cases.v         # NNA edge cases & signed saturation bounds
+│   ├── tb_safety_filter.v            # Safety filter watchdog & heartbeat verification
+│   └── tb_safety_adversarial.v       # Adversarial safety, jitter & E-stop race tests
+└── syn/                              # FPGA Synthesis Scripts
+    └── synth_ecp5.ys                 # Yosys synthesis script for Lattice ECP5
 ```
 
 ---
 
-## 3. Quickstart & Verification
+## 4. Quickstart & Verification
 
-### Prerequisites
-- **Icarus Verilog (`iverilog`)** & **`vvp`** (v11 or later)
-- **Python 3.8+**
-- **Yosys** (optional, for FPGA synthesis verification)
-
-### Running Tests
-Execute the comprehensive verification test suite:
-
+### Running the Full Regression Suite
 ```bash
-# Run baseline test suite (Python golden models + RTL units + SoC top)
-make test
+# Run all Python reference tests, fuzzing, RTL testbenches & navigation simulation
+make all
+```
 
-# Run 1000-vector INT8 corner-case fuzzing and RTL saturation tests
-make corner_test
+Individual test targets:
+```bash
+# Run Python INT8 model & 1000-vector fuzzing suite
+make test_py
+
+# Run RTL unit and adversarial testbenches
+make sim_nna sim_safety sim_nna_corners sim_safety_adv
 
 # Run full end-to-end autonomous navigation simulation (tb_soc_nav)
 make sim_nav
@@ -142,16 +150,17 @@ make synth_check
 | Suite / Testbench | Description | Status |
 |---|---|:---:|
 | `sw/model/reference_model.py` | Bit-exact Python INT8 MAC & requantization reference | **PASS** |
-| `sw/test/test_nna_corners.py` | 1000-vector random fuzzing + boundary corner cases | **PASS (58/58)** |
+| `sw/model/fuzz_nna_reference.py` | 1000-vector random fuzzing bit-exact match | **PASS (1000/1000)** |
+| `sw/model/test_nna_corners.py` | Python INT8 extreme corner/saturation suite | **PASS (9/9)** |
 | `sw/safety/safety_layer.py` | Envelope clamp, slew-rate limiter & TTC braking | **PASS** |
-| `sw/policy/nav_policy.py` | 16->8->2 obstacle avoidance policy validation | **PASS** |
+| `sw/policy/nav_policy.py` | Synthetic 16->8->2 obstacle avoidance policy validation | **PASS** |
 | `sim/tb_nna_top.v` | NNA MMIO register reads/writes & MAC operations | **PASS** |
-| `sim/tb_nna_corner_cases.v` | Hardware RTL INT8 saturation & negative zero check | **PASS (6/6)** |
-| `sim/tb_safety.v` | Heartbeat watchdog timer & E-stop trip verification | **PASS** |
+| `sim/tb_nna_corner_cases.v` | Hardware RTL INT8 saturation & boundary checks | **PASS (6/6)** |
+| `sim/tb_safety_filter.v` | Heartbeat watchdog timer & E-stop trip verification | **PASS** |
 | `sim/tb_safety_adversarial.v` | Jitter, timeout, physical E-stop lockout & race checks | **PASS (6/6)** |
 | `sim/tb_soc_top.v` | Full SoC integration boot & firmware diagnostic run | **PASS** |
 | `sim/tb_soc_nav.v` | End-to-end SoC navigation execution (5 cycles) | **PASS** |
-| `synth/synth_ecp5.ys` | Yosys synthesis targeting Lattice LFE5U-25F-6BG381C | **PASS** |
+| `syn/synth_ecp5.ys` | Yosys synthesis targeting Lattice LFE5U-25F-6BG381C | **PASS** |
 
 ### Measured FPGA Synthesis Metrics (Lattice ECP5)
 Synthesized with **Yosys Open Synthesis Suite (v0.68)**:
@@ -160,18 +169,19 @@ Synthesized with **Yosys Open Synthesis Suite (v0.68)**:
   - `rv_nna` INT8 Accelerator: 494 LUTs (18.4%)
   - `safety_filter` Hardware Interlock: 112 LUTs (4.2%)
   - Interconnect & Peripherals (ROM, RAM, UART, Timer, PWM): 492 LUTs (18.3%)
-- **Registers (DFF):** 1,180 D-flip-flops
+- **Registers (DFF):** 2,130 D-flip-flops
 - **DSP Multipliers:** 4x `MULT18X18D` blocks (dedicated 4-way parallel SIMD MACs in `nna_mac4.v`)
 - **Memory:** Synthesizable synchronous distributed/block RAM architecture
 
 ---
 
-## 4. Documentation Index
+## 5. Documentation Index
 
 Detailed engineering specifications and reports are provided in the `docs/` directory:
 
 | Document | Description |
 |---|---|
+| [Master Project Roadmap](docs/PROJECT_ROADMAP.md) | Official 6-phase roadmap, dependencies, criteria, and engineering gates |
 | [01. System Architecture](docs/01_system_architecture.md) | High-level architecture, subsystem boundaries, dataflow, and bus structure |
 | [02. CPU Selection](docs/02_cpu_selection.md) | Technical comparison of 5 open-source RISC-V cores & justification for Ibex / PicoRV32 |
 | [03. Memory Map](docs/03_memory_map.md) | System memory map, peripheral address ranges, and register offsets |
@@ -183,11 +193,12 @@ Detailed engineering specifications and reports are provided in the `docs/` dire
 | [09. Hardware Semantics & Assumptions](docs/09_hardware_semantics_and_assumptions.md) | Formal INT8 representation, accumulator headroom, E-stop latency & timing rules |
 | [10. Hardening & Verification Report](docs/10_hardening_report.md) | Engineering Hardening Phase completion report, audit matrices, and bug resolution |
 | [11. Measured FPGA Synthesis Report](docs/11_fpga_synthesis_report.md) | Real Yosys synthesis breakdown, cell counts, DSP utilization, and Fmax analysis |
-| [Hardening Roadmap](docs/HARDENING_ROADMAP.md) | 100% completed engineering hardening checklist and audit verification |
+| [12. Readiness & Post-Merge Audit](docs/12_readiness_and_audit_report.md) | Phase 1 readiness assessment, host compute audit, and regression verification |
+| [Hardening Roadmap](docs/HARDENING_ROADMAP.md) | 100% completed pre-RL engineering hardening checklist |
 
 ---
 
-## 5. License & Credits
+## 6. License & Credits
 
 - Hardware RTL, firmware, simulation testbenches, and documentation are licensed under the Apache License 2.0.
 - `picorv32.v` is authored by Claire Wolf and licensed under the ISC License.
