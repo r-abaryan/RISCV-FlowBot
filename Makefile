@@ -7,9 +7,9 @@ IVERILOG ?= iverilog
 VVP ?= vvp
 YOSYS ?= yosys
 
-.PHONY: all sim sim_nna sim_safety sim_soc sim_nav sim_nna_corners sim_safety_adv sim_all test_py test_nna_corners firmware synth_check clean
+.PHONY: all sim sim_nna sim_safety sim_soc sim_nav sim_nna_corners sim_safety_adv sim_trained_nna test_quant sim_all test_py test_nna_corners firmware synth_check clean
 
-all: test_py test_nna_corners sim_nna sim_safety sim_nna_corners sim_safety_adv sim_soc sim_nav synth_check
+all: test_py test_nna_corners test_quant sim_nna sim_safety sim_nna_corners sim_safety_adv sim_trained_nna sim_soc sim_nav synth_check
 
 firmware:
 	$(MAKE) -C $(ROOT_DIR)/sim firmware
@@ -19,6 +19,9 @@ test_py:
 
 test_nna_corners:
 	$(MAKE) -C $(ROOT_DIR)/sim test_nna_corners
+
+test_quant:
+	$(MAKE) -C $(ROOT_DIR)/sim test_quant
 
 sim: sim_nna sim_safety sim_soc sim_nav
 
@@ -34,13 +37,16 @@ sim_nna_corners:
 sim_safety_adv:
 	$(MAKE) -C $(ROOT_DIR)/sim test_safety_adv
 
+sim_trained_nna:
+	$(MAKE) -C $(ROOT_DIR)/sim test_trained_nna
+
 sim_soc:
 	$(MAKE) -C $(ROOT_DIR)/sim test_soc
 
 sim_nav:
 	$(MAKE) -C $(ROOT_DIR)/sim test_nav
 
-sim_all: sim_nna sim_safety sim_nna_corners sim_safety_adv sim_soc sim_nav
+sim_all: sim_nna sim_safety sim_nna_corners sim_safety_adv sim_trained_nna sim_soc sim_nav
 
 synth_check:
 	@echo "--- Running Yosys RTL Syntax & Elaboration Check ---"

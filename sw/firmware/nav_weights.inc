@@ -3,63 +3,63 @@
     .section .rodata
     .globl l1_weights, l1_biases, l2_weights, l2_biases
 
-/* Layer 1: K=16, M=8, ScaleMult=16384, ScaleShift=15 */
+/* Layer 1: K=16, M=8, ScaleMult=153, ScaleShift=15 */
     .balign 4
 l1_weights:
-    .word 0xfbd8cee2  /* W1[0] */
-    .word 0x00000000  /* W1[1] */
-    .word 0x00000000  /* W1[2] */
-    .word 0x00000000  /* W1[3] */
-    .word 0x00000000  /* W1[4] */
-    .word 0xe2ced8fb  /* W1[5] */
-    .word 0x00000000  /* W1[6] */
-    .word 0x00000000  /* W1[7] */
-    .word 0xc9ec0000  /* W1[8] */
-    .word 0x0000ecc9  /* W1[9] */
-    .word 0x00000000  /* W1[10] */
-    .word 0x00000000  /* W1[11] */
-    .word 0x00000000  /* W1[12] */
-    .word 0x00000000  /* W1[13] */
-    .word 0x00000000  /* W1[14] */
-    .word 0x3c000000  /* W1[15] */
-    .word 0x00000000  /* W1[16] */
-    .word 0x00000000  /* W1[17] */
-    .word 0x00000000  /* W1[18] */
-    .word 0xc4000000  /* W1[19] */
-    .word 0x28140000  /* W1[20] */
-    .word 0x00001428  /* W1[21] */
-    .word 0x00000000  /* W1[22] */
-    .word 0x001e0000  /* W1[23] */
-    .word 0x00000000  /* W1[24] */
-    .word 0x00000000  /* W1[25] */
-    .word 0x00d80000  /* W1[26] */
-    .word 0x00000000  /* W1[27] */
-    .word 0x00000000  /* W1[28] */
-    .word 0x00000000  /* W1[29] */
-    .word 0x32000000  /* W1[30] */
-    .word 0x00000000  /* W1[31] */
+    .word 0x12120403  /* W1[0] */
+    .word 0xd5ec0307  /* W1[1] */
+    .word 0xe9eefcf5  /* W1[2] */
+    .word 0xadd6cd05  /* W1[3] */
+    .word 0x030706fc  /* W1[4] */
+    .word 0xfd81fcfd  /* W1[5] */
+    .word 0x14ef28f4  /* W1[6] */
+    .word 0x24f902f2  /* W1[7] */
+    .word 0xfefd8afc  /* W1[8] */
+    .word 0xfdff0505  /* W1[9] */
+    .word 0x01fd1e11  /* W1[10] */
+    .word 0xf6f6efdf  /* W1[11] */
+    .word 0x0e0b0205  /* W1[12] */
+    .word 0x08faff01  /* W1[13] */
+    .word 0x72ec2aed  /* W1[14] */
+    .word 0xd4f3e1f5  /* W1[15] */
+    .word 0x0b0f0501  /* W1[16] */
+    .word 0x300203fe  /* W1[17] */
+    .word 0x5fd102ff  /* W1[18] */
+    .word 0x88f90502  /* W1[19] */
+    .word 0x050806fa  /* W1[20] */
+    .word 0x08fd07ff  /* W1[21] */
+    .word 0x0324acf4  /* W1[22] */
+    .word 0x60ed1af0  /* W1[23] */
+    .word 0xf804fcfb  /* W1[24] */
+    .word 0xfd0590fc  /* W1[25] */
+    .word 0xfe25d2fc  /* W1[26] */
+    .word 0xfbe9f806  /* W1[27] */
+    .word 0x191e0afa  /* W1[28] */
+    .word 0x00ecff03  /* W1[29] */
+    .word 0x16ca2212  /* W1[30] */
+    .word 0xa4d5db0d  /* W1[31] */
 
     .balign 4
 l1_biases:
-    .word 0x00000064  /* B1[0] */
-    .word 0x00000064  /* B1[1] */
-    .word 0x000000c8  /* B1[2] */
-    .word 0x00000000  /* B1[3] */
-    .word 0x00000000  /* B1[4] */
-    .word 0xffffff38  /* B1[5] */
-    .word 0x00000000  /* B1[6] */
-    .word 0x00000000  /* B1[7] */
+    .word 0x00001bb9  /* B1[0] */
+    .word 0xffffda7b  /* B1[1] */
+    .word 0xffffdfd9  /* B1[2] */
+    .word 0xfffffe8c  /* B1[3] */
+    .word 0xfffff6d6  /* B1[4] */
+    .word 0x00000b92  /* B1[5] */
+    .word 0xffffe0bd  /* B1[6] */
+    .word 0xfffff021  /* B1[7] */
 
-/* Layer 2: K=8, M=2, ScaleMult=16384, ScaleShift=15 */
+/* Layer 2: K=8, M=2, ScaleMult=1333, ScaleShift=15 */
     .balign 4
 l2_weights:
-    .word 0x00c4f6f6  /* W2[0] */
-    .word 0x0a004600  /* W2[1] */
-    .word 0x2d1ec43c  /* W2[2] */
-    .word 0x00ec00d3  /* W2[3] */
+    .word 0x1bd8e9ff  /* W2[0] */
+    .word 0xf3cd02fc  /* W2[1] */
+    .word 0x1d7f9fd1  /* W2[2] */
+    .word 0x2d8727cb  /* W2[3] */
 
     .balign 4
 l2_biases:
-    .word 0x00000000  /* B2[0] */
-    .word 0x00000000  /* B2[1] */
+    .word 0x00000284  /* B2[0] */
+    .word 0x000003c3  /* B2[1] */
 

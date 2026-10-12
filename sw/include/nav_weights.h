@@ -6,70 +6,70 @@
 
 #define L1_K 16
 #define L1_M 8
-#define L1_SCALE_MULT 16384
+#define L1_SCALE_MULT 153
 #define L1_SCALE_SHIFT 15
 
 #define L2_K 8
 #define L2_M 2
-#define L2_SCALE_MULT 16384
+#define L2_SCALE_MULT 1333
 #define L2_SCALE_SHIFT 15
 
 static const uint32_t l1_weights[] = {
-    0xfbd8cee2U,
-    0x00000000U,
-    0x00000000U,
-    0x00000000U,
-    0x00000000U,
-    0xe2ced8fbU,
-    0x00000000U,
-    0x00000000U,
-    0xc9ec0000U,
-    0x0000ecc9U,
-    0x00000000U,
-    0x00000000U,
-    0x00000000U,
-    0x00000000U,
-    0x00000000U,
-    0x3c000000U,
-    0x00000000U,
-    0x00000000U,
-    0x00000000U,
-    0xc4000000U,
-    0x28140000U,
-    0x00001428U,
-    0x00000000U,
-    0x001e0000U,
-    0x00000000U,
-    0x00000000U,
-    0x00d80000U,
-    0x00000000U,
-    0x00000000U,
-    0x00000000U,
-    0x32000000U,
-    0x00000000U,
+    0x12120403U,
+    0xd5ec0307U,
+    0xe9eefcf5U,
+    0xadd6cd05U,
+    0x030706fcU,
+    0xfd81fcfdU,
+    0x14ef28f4U,
+    0x24f902f2U,
+    0xfefd8afcU,
+    0xfdff0505U,
+    0x01fd1e11U,
+    0xf6f6efdfU,
+    0x0e0b0205U,
+    0x08faff01U,
+    0x72ec2aedU,
+    0xd4f3e1f5U,
+    0x0b0f0501U,
+    0x300203feU,
+    0x5fd102ffU,
+    0x88f90502U,
+    0x050806faU,
+    0x08fd07ffU,
+    0x0324acf4U,
+    0x60ed1af0U,
+    0xf804fcfbU,
+    0xfd0590fcU,
+    0xfe25d2fcU,
+    0xfbe9f806U,
+    0x191e0afaU,
+    0x00ecff03U,
+    0x16ca2212U,
+    0xa4d5db0dU,
 };
 
 static const uint32_t l1_biases[] = {
-    0x00000064U,
-    0x00000064U,
-    0x000000c8U,
-    0x00000000U,
-    0x00000000U,
-    0xffffff38U,
-    0x00000000U,
-    0x00000000U,
+    0x00001bb9U,
+    0xffffda7bU,
+    0xffffdfd9U,
+    0xfffffe8cU,
+    0xfffff6d6U,
+    0x00000b92U,
+    0xffffe0bdU,
+    0xfffff021U,
 };
 
 static const uint32_t l2_weights[] = {
-    0x00c4f6f6U,
-    0x0a004600U,
-    0x2d1ec43cU,
-    0x00ec00d3U,
+    0x1bd8e9ffU,
+    0xf3cd02fcU,
+    0x1d7f9fd1U,
+    0x2d8727cbU,
 };
 
 static const uint32_t l2_biases[] = {
-    0x00000000U,
-    0x00000000U,
+    0x00000284U,
+    0x000003c3U,
 };
 
 #endif /* NAV_WEIGHTS_H */
