@@ -2,8 +2,22 @@
 
     .section .rodata
     .globl l1_weights, l1_biases, l2_weights, l2_biases
+    .globl L1_K_DIM, L1_M_DIM, L1_SCALE_MULT_VAL, L1_SCALE_SHIFT_VAL, L1_ACT_VAL
+    .globl L2_K_DIM, L2_M_DIM, L2_SCALE_MULT_VAL, L2_SCALE_SHIFT_VAL, L2_ACT_VAL
 
-/* Layer 1: K=16, M=8, ScaleMult=153, ScaleShift=15 */
+.equ L1_K_DIM,          16
+.equ L1_M_DIM,          8
+.equ L1_SCALE_MULT_VAL, 153
+.equ L1_SCALE_SHIFT_VAL,15
+.equ L1_ACT_VAL,        1
+
+.equ L2_K_DIM,          8
+.equ L2_M_DIM,          2
+.equ L2_SCALE_MULT_VAL, 1333
+.equ L2_SCALE_SHIFT_VAL,15
+.equ L2_ACT_VAL,        2
+
+/* Layer 1: K=16, M=8, ScaleMult=153, ScaleShift=15, Act=1 */
     .balign 4
 l1_weights:
     .word 0x12120403  /* W1[0] */
@@ -50,7 +64,7 @@ l1_biases:
     .word 0xffffe0bd  /* B1[6] */
     .word 0xfffff021  /* B1[7] */
 
-/* Layer 2: K=8, M=2, ScaleMult=1333, ScaleShift=15 */
+/* Layer 2: K=8, M=2, ScaleMult=1333, ScaleShift=15, Act=2 */
     .balign 4
 l2_weights:
     .word 0x1bd8e9ff  /* W2[0] */

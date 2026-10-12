@@ -38,11 +38,13 @@ firmware:
 	fi
 
 test_py:
-	@echo "--- [1/3] Running INT8 Reference Model Test ---"
+	@echo "--- [1/4] Running INT8 Reference Model Test ---"
 	$(PYTHON) $(ROOT_DIR)/sw/model/reference_model.py
-	@echo "--- [2/3] Running Python Deterministic Safety Layer Test ---"
+	@echo "--- [2/4] Running Independent Vector Verification ---"
+	$(PYTHON) $(ROOT_DIR)/sim/verify_independent_vectors.py
+	@echo "--- [3/4] Running Python Deterministic Safety Layer Test ---"
 	$(PYTHON) $(ROOT_DIR)/sw/safety/safety_layer.py
-	@echo "--- [3/3] Running End-to-End Navigation Policy Simulation ---"
+	@echo "--- [4/4] Running End-to-End Navigation Policy Simulation ---"
 	PYTHONPATH=$(ROOT_DIR)/sw/model:$(ROOT_DIR)/sw/safety $(PYTHON) $(ROOT_DIR)/sw/model/robot_policy_e2e.py
 
 test_nna_corners:
