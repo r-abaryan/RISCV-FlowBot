@@ -50,13 +50,6 @@ static inline void safety_filter_command(
     int8_t target_v = raw_v;
     int8_t target_w = raw_w;
 
-    // 1. Proximity override: if obstacle detected within stopping distance, force zero linear velocity
-    if (min_distance_cm <= MIN_STOP_DISTANCE_CM) {
-        if (target_v > 0) {
-            target_v = 0; // Immediate halt
-        }
-    }
-
     // 2. Absolute Kinematic Clamping
     if (target_v > MAX_LINEAR_VEL_Q7)  target_v = MAX_LINEAR_VEL_Q7;
     if (target_v < -MAX_LINEAR_VEL_Q7) target_v = -MAX_LINEAR_VEL_Q7;
@@ -76,6 +69,18 @@ static inline void safety_filter_command(
         target_w = state->last_w + MAX_ACCEL_SLEW_Q7;
     } else if (delta_w < -MAX_ACCEL_SLEW_Q7) {
         target_w = state->last_w - MAX_ACCEL_SLEW_Q7;
+    }
+
+    // 4. Proximity override AFTER slew limiting (M5 fix): previously the slew limiter
+    //    could keep forward velocity up to MAX_ACCEL_SLEW_Q7 above zero at an obstacle.
+    //    Braking is always allowed to be immediate. Negative distance = invalid = contact.
+    if (min_distance_cm < 0) min_distance_cm = 0;
+    if (min_distance_cm <= MIN_STOP_DISTANCE_CM) {
+        if (target_v > 0) target_v = 0;
+    } else if (target_v > 0) {
+        // per-period cap: 5/8 Q7 LSB per cm beyond margin (conservative vs 0.64 exact at 50 Hz)
+        int16_t cap = (int16_t)(((int32_t)(min_distance_cm - MIN_STOP_DISTANCE_CM) * 5) >> 3);
+        if (target_v > cap) target_v = (int8_t)cap;
     }
 
     // Update state

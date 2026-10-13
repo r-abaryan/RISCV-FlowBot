@@ -20,3 +20,7 @@ Test: sw/test/test_safety_fault_injection.py (wired into make -C sim test_py). R
 - No formal checks, no jerk limit (only acceleration limit exists), no RTL fault-injection of the cosim loop.
 - Sensor dropout is only modeled as an invalid distance value, not stale/frozen data.
 - RTL regression not re-run (RTL unchanged).
+
+## Update: C driver port
+sw/firmware/safety_driver.h now applies the proximity stop after the slew limiter, treats negative distance as contact, and caps v per period at (dist-25)*5/8 Q7 LSB. Before, slew limiting could leave v up to 8 LSB forward at an obstacle (bug found by mirror test).
+Verification: sw/test/test_safety_c_mirror.py is an integer Python mirror, not compiled C (no C compiler or RISC-V gcc in sandbox). Hand-sync risk remains. The hand-written assembly firmware (robot_nav_firmware.s) has its own simpler front-distance check and was not changed. RTL not touched, regression not re-run.
