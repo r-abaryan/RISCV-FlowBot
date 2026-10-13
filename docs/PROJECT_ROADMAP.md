@@ -2,7 +2,7 @@
 
 **Document Version:** 2.0  
 **Status:** Active Master Specification  
-**Current Milestone:** Phase 1 Complete (Genuine RL/DAgger Trained Navigation Policy Verified; INT8 Retention 100%); Ready for Phase 2 Execution  
+**Current Milestone:** Phase 4 Complete (Closed-Loop Multi-Step SoC Co-Simulation Verified with 0 LSB Error); Ready for Phase 5 Execution  
 **Project Objective:** A reproducible robotic computing platform that executes a genuinely learned reinforcement-learning policy through a custom RV32IM SoC with memory-mapped INT8 neural acceleration while maintaining deterministic hardware safety boundaries.
 
 ---
@@ -57,8 +57,8 @@ Implement a lightweight, self-contained 2D mobile robot navigation simulation en
 #### 2. Technical Scope
 - **Host Execution Constraints:** Strict operation within local resource envelope (**458 MB available RAM, 1 vCPU, Alpine Linux, Python 3.14 with NumPy**). Heavy external frameworks (PyTorch, TorchRL, Stable-Baselines3) are prohibited due to deterministic kernel OOM risks.
 - **Simulation Environment (`sw/env/nav_env_2d.py`):**
-  - Continuous 2D kinematics for a differential-drive robot: position $(x, y)$, heading $\theta$, forward velocity $v \in [0, v_{\max}]$, angular velocity $\omega \in [-\omega_{\max}, +\omega_{\max}]$.
-  - Sensor model: 12-ray simulated rangefinder (lidar/sonar) with configurable range and obstacle collision boundaries, target-relative polar coordinates (distance $d$, relative angle $\phi$), and current velocities. Total observation dimension: **16 features**.
+  - Continuous 2D kinematics for a differential-drive robot: position (x, y), heading theta, forward velocity v in [0, v_max], angular velocity omega in [-omega_max, +omega_max].
+  - Sensor model: 12-ray simulated rangefinder (lidar/sonar) with configurable range and obstacle collision boundaries, target-relative polar coordinates (distance d, relative angle phi), and current velocities. Total observation dimension: **16 features**.
   - Configurable arenas: Point-to-point goal reaching with circular and rectangular static obstacles.
   - Reward function: Positive progress toward goal, penalty for angular deviation, heavy penalty for collisions, small step penalty for time efficiency.
 - **Learning Algorithm (`sw/training/train_rl.py`):**

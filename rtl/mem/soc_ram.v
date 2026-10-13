@@ -55,6 +55,13 @@ module soc_ram #(
 `else
     reg [31:0] ram_mem [0:MEM_SIZE_WORDS-1];
 
+    integer ram_init_idx;
+    initial begin
+        for (ram_init_idx = 0; ram_init_idx < MEM_SIZE_WORDS; ram_init_idx = ram_init_idx + 1) begin
+            ram_mem[ram_init_idx] = 32'h0;
+        end
+    end
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             wb_dat_o <= 32'h0;

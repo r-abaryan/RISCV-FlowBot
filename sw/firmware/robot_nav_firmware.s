@@ -12,7 +12,9 @@
  * 5. Telemetry & diagnostics via memory-mapped UART
  * ============================================================================ */
 
-    .section .text._start
+    .include "nav_weights.inc"
+
+.section .text._start
     .globl _start
 
 _start:
@@ -33,13 +35,11 @@ _start:
     /* ------------------------------------------------------------------------
      * 2. Initialize Dual PWM Motor Controller
      * ------------------------------------------------------------------------ */
-    li   t0, 0x50000500       /* ADDR_PWM_BASE */
-    li   t1, 1000             /* Period = 1000 clock cycles */
-    sw   t1, 0x00(t0)         /* PWM_REG_PERIOD */
+    li   t0, 0x50000200       /* ADDR_PWM_BASE */
+    li   t1, 1                /* Enable bit = 1 */
+    sw   t1, 0x00(t0)         /* PWM_REG_CTRL = enable */
     sw   zero, 0x04(t0)       /* PWM_REG_DUTY_LEFT = 0 */
     sw   zero, 0x08(t0)       /* PWM_REG_DUTY_RIGHT = 0 */
-    li   t1, 1
-    sw   t1, 0x0C(t0)         /* PWM_REG_CTRL = enable */
 
     /* ------------------------------------------------------------------------
      * 3. Print Boot Banner over UART
@@ -150,14 +150,14 @@ copy_l1_b:
     addi t3, t3, -1
     bnez t3, copy_l1_b
 
-    /* Configure NNA Layer 1: K=16, M=8, ScaleMult=16384, Shift=15, Act=RELU(1) */
-    li   t1, 0x00080010       /* dim_m=8, dim_k=16 */
+    /* Configure NNA Layer 1 using constants from nav_weights.inc */
+    li   t1, (L1_M_DIM << 16) | L1_K_DIM  /* dim_m, dim_k */
     sw   t1, 0x08(s1)         /* CONFIG_DIM */
-    li   t1, 16384
+    li   t1, L1_SCALE_MULT_VAL
     sw   t1, 0x10(s1)         /* CONFIG_SCALE */
-    li   t1, 15
+    li   t1, L1_SCALE_SHIFT_VAL
     sw   t1, 0x14(s1)         /* CONFIG_SHIFT */
-    li   t1, 1                /* ACT_RELU */
+    li   t1, L1_ACT_VAL
     sw   t1, 0x0C(s1)         /* CONFIG_ACT */
 
     /* Start NNA and wait */
@@ -207,14 +207,14 @@ copy_l2_b:
     addi t3, t3, -1
     bnez t3, copy_l2_b
 
-    /* Configure NNA Layer 2: K=8, M=2, ScaleMult=16384, Shift=15, Act=CLIP(2) */
-    li   t1, 0x00020008       /* dim_m=2, dim_k=8 */
+    /* Configure NNA Layer 2 using constants from nav_weights.inc */
+    li   t1, (L2_M_DIM << 16) | L2_K_DIM  /* dim_m, dim_k */
     sw   t1, 0x08(s1)         /* CONFIG_DIM */
-    li   t1, 16384
+    li   t1, L2_SCALE_MULT_VAL
     sw   t1, 0x10(s1)         /* CONFIG_SCALE */
-    li   t1, 15
+    li   t1, L2_SCALE_SHIFT_VAL
     sw   t1, 0x14(s1)         /* CONFIG_SHIFT */
-    li   t1, 2                /* ACT_CLIP */
+    li   t1, L2_ACT_VAL
     sw   t1, 0x0C(s1)         /* CONFIG_ACT */
 
     /* Start NNA and wait */
@@ -304,7 +304,7 @@ clamp_r_min:
 clamp_r_max:
 
     /* Write to PWM registers */
-    li   t0, 0x50000500
+    li   t0, 0x50000200
     sw   t2, 0x04(t0)         /* DUTY_LEFT */
     sw   t3, 0x08(t0)         /* DUTY_RIGHT */
 
@@ -481,4 +481,4 @@ case3_sensors:
     .word 0x00500000  /* vy=0, wz=0, goal_dist=80, goal_heading=0 */
 
 /* Include auto-generated trained weights */
-.include "nav_weights.inc"
+
