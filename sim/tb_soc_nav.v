@@ -177,8 +177,11 @@ module tb_soc_nav;
             $display(" [ASSERT 3 PASS] Cycle 2 raw policy output verified: v=0xFD (-3), w=0x7F (+127)");
 
             // Cycle 3: Front obstacle
-            $display(" [ASSERT 4 PASS] Cycle 3 raw policy output verified: v=0x%02x, w=0x%02x",
-                     nna_v_history[2], nna_w_history[2]);
+            if (nna_v_history[2] != 8'h1a || nna_w_history[2] != 8'h27) begin
+                $fatal(1, "[TB FATAL] Cycle 3 raw policy output mismatch: got v=0x%02x, w=0x%02x (expected v=0x1A, w=0x27)",
+                       nna_v_history[2], nna_w_history[2]);
+            end
+            $display(" [ASSERT 4 PASS] Cycle 3 raw policy output verified: v=0x1A (+26), w=0x27 (+39)");
 
             // 3. Assert Motor PWM commands and Safety Interlock
             // History index 0 is initial zero PWM. Index 1, 2, 3 correspond to Cycle 1, 2, 3.

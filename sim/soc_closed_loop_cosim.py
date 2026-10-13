@@ -191,7 +191,8 @@ def run_cosim(args):
             total_cycles += res["cycles"]
 
             # 6. Apply Filtered Action to 2D Physics Environment
-            act_float = np.array([res["v_cmd"] / 127.0, res["w_cmd"] / 127.0], dtype=np.float32)
+            # env maps action[0] in [-1,1] -> target_v = 0.5*(a+1)*v_max, so v_cmd=0 must map to a=-1
+            act_float = np.array([2.0 * max(0, res["v_cmd"]) / 127.0 - 1.0, res["w_cmd"] / 127.0], dtype=np.float32)
             obs, reward, done, info = env.step(act_float)
 
             # Log step
@@ -267,11 +268,11 @@ def run_cosim(args):
 
 def main():
     parser = argparse.ArgumentParser(description="RISC-V SoC Closed-Loop Co-Simulation Harness")
-    parser.add_argument("--vvp", default="/workspace/sim/tb_soc_cosim.vvp", help="Path to compiled tb_soc_cosim.vvp")
+    parser.add_argument("--vvp", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "tb_soc_cosim.vvp"), help="Path to compiled tb_soc_cosim.vvp")
     parser.add_argument("--steps", type=int, default=20, help="Max steps per episode")
     parser.add_argument("--episodes", type=int, default=1, help="Number of episodes")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for environment reset")
-    parser.add_argument("--output", default="/workspace/sim/cosim_results.json", help="Path to write JSON results")
+    parser.add_argument("--output", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "cosim_results.json"), help="Path to write JSON results")
     args = parser.parse_args()
 
     sys.exit(run_cosim(args))
