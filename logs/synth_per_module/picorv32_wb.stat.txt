@@ -1,0 +1,22 @@
+
+5. Printing statistics.
+
+=== picorv32_wb ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     1455 wires
+     5472 wire bits
+     1455 public wires
+     5472 public wire bits
+       24 ports
+      341 port bits
+     2439 cells
+        1   $scopeinfo
+      177   CCU2C
+       20   L6MUX21
+     1294   LUT4
+      238   PFUMX
+       32   TRELLIS_DPR16X4
+      677   TRELLIS_FF
+

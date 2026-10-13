@@ -1,0 +1,23 @@
+
+5. Printing statistics.
+
+=== nna_top ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     5026 wires
+    14601 wire bits
+     5026 public wires
+    14601 public wire bits
+       10 ports
+      106 port bits
+     7882 cells
+        3   $scopeinfo
+      146   CCU2C
+      138   L6MUX21
+     5393   LUT4
+        8   MULT18X18D
+      620   PFUMX
+      352   TRELLIS_DPR16X4
+     1222   TRELLIS_FF
+

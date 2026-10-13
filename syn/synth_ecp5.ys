@@ -1,0 +1,6 @@
+# Usage: yosys -s syn/synth_ecp5.ys   (run from repo root)
+read_verilog -DSYNTHESIS -Irtl rtl/nna/nna_core.v rtl/nna/nna_mac4.v rtl/nna/nna_regs.v rtl/nna/nna_top.v rtl/safety/safety_filter.v rtl/periph/soc_pwm.v rtl/periph/soc_timer.v rtl/periph/soc_uart.v rtl/mem/soc_ram.v rtl/mem/soc_rom.v rtl/bus/soc_interconnect.v rtl/cpu/picorv32.v rtl/soc_top.v
+hierarchy -check -top soc_top
+synth_ecp5 -top soc_top
+check
+tee -o logs/synth_ecp5_stat.txt stat

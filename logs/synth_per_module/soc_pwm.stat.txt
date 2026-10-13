@@ -1,0 +1,20 @@
+
+5. Printing statistics.
+
+=== soc_pwm ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       63 wires
+      383 wire bits
+       63 public wires
+      383 public wire bits
+       15 ports
+      141 port bits
+      162 cells
+       24   CCU2C
+        1   L6MUX21
+       67   LUT4
+        4   PFUMX
+       66   TRELLIS_FF
+

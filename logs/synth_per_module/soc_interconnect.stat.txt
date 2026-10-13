@@ -1,0 +1,19 @@
+
+5. Printing statistics.
+
+=== soc_interconnect ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      420 wires
+     1378 wire bits
+      420 public wires
+     1378 public wire bits
+       64 ports
+      832 port bits
+      525 cells
+       38   L6MUX21
+      372   LUT4
+      114   PFUMX
+        1   TRELLIS_FF
+

@@ -1,0 +1,18 @@
+
+5. Printing statistics.
+
+=== soc_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       82 wires
+     1279 wire bits
+       82 public wires
+     1279 public wire bits
+       10 ports
+      106 port bits
+       40 cells
+       32   DP16KD
+        7   LUT4
+        1   TRELLIS_FF
+
