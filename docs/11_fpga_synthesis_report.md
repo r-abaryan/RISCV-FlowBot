@@ -1,5 +1,9 @@
 # RISC-V FlowBot: Measured FPGA Synthesis & Resource Utilization Report
 
+> **SUPERSEDED / UNVERIFIED (corrected 2026-10-13).** The tables below (including the 2,686-LUT / 4-DSP totals and the per-module counts) were written in commit dffa1c2. No Yosys log, `.ys` script or netlist for them exists in the repository, so they could not be reproduced. A re-run with Yosys 0.68+post gave different numbers (e.g. `nna_top` 5,393 LUT4 and 8 MULT18X18D, versus the 88 / 1,002 LUT4 quoted below). Treat everything below as **unverified history**. Current evidence: `docs/18_yosys_environment_and_per_module_synthesis.md`, `docs/19_synthesis_handoff_and_status.md` and `logs/synth_per_module*/`.
+> The `ibex_wb_adapter` row refers to a module that is not in the current RTL tree.
+
+
 **Target Architecture:** Lattice ECP5 FPGA (and Generic Cell Library)  
 **Synthesis Suite:** Yosys Open SYnthesis Suite (v0.68+post)  
 **Date:** October 2026

@@ -59,19 +59,17 @@ The designed SoC architecture is tailored for reinforcement learning (RL) mobile
 | `sim/tb_safety_adversarial.v`| Adversarial safety filter verification | **PASS** | 6 multi-hazard scenarios (race condition, lockout). |
 | `sim/tb_soc_top.v` | Full SoC system boot & diagnostic testbench | **PASS** | CPU boots, executes ROM, writes UART & PWM in 523 cycles. |
 | `sim/tb_soc_nav.v` | End-to-end SoC navigation testbench | **PASS** | CPU runs 5 control cycles with obstacle clamping & PWM. |
-| `make synth_check` | Yosys synthesis mapping to Lattice ECP5 | **PASS** | Synthesized clean in 82.3 seconds (2,686 LUTs, 4 DSPs). |
+| `make synth_check` | Yosys synthesis mapping to Lattice ECP5 | **Elaboration check only** | `read_verilog`, `hierarchy -check`, `check`. No ECP5 mapping. The earlier 82.3 s / 2,686 LUT / 4 DSP claim is UNVERIFIED and superseded. |
 
 ---
 
 ## 4. Current Hardware Resource Utilization
 
-### Real Measured Yosys Synthesis Metrics (Lattice ECP5 `LFE5U-25F`)
-- **Total Logic Cells (LUT4 equivalents):** 2,686 / 24,288 (11.06% of target device)
-- **Registers (D-Type Flip-Flops):** 2,130
-- **Hardware DSP Slices (MULT18X18D):** 4 / 28 (14.29% of target device)
-- **Estimated Maximum Clock Frequency ($F_{\max}$):** ~38 MHz (PicoRV32 datapath)
-
-*Detailed breakdown available in `docs/11_fpga_synthesis_report.md`.*
+### Synthesis status (corrected 2026-10-13)
+- **UNVERIFIED and superseded:** the former figures of 2,686 LUT4, 2,130 FFs, 4 DSPs and about 38 MHz Fmax. No logs back them. Do not cite them.
+- **Measured, per module (Yosys 0.68+post, `synth_ecp5 -noabc9`, modules synthesized separately, no place and route):** the sum of the separate runs is **7,648 LUT4 and 8 MULT18X18D** (picorv32_wb with the *default* `picorv32.v` parameters, i.e. without the MUL/DIV options that `soc_top` enables). With the `soc_top` parameters, `picorv32_wb` alone is 2,727 LUT4 and 4 MULT18X18D, so the per-module sum becomes about 9,081 LUT4. **This is a sum of separate runs. It is NOT a verified integrated-SoC utilization.** Whole-SoC (`soc_top`) synthesis has not completed.
+- **Not measured at all:** Fmax (needs place and route with nextpnr), timing, power, and the real ROM/RAM mapping.
+- Details: `docs/18_yosys_environment_and_per_module_synthesis.md`, `docs/19_synthesis_handoff_and_status.md`, raw logs in `logs/`.
 
 ---
 

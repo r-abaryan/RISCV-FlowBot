@@ -1,0 +1,10 @@
+# UNTESTED: no container runtime was available in the sandbox where this was written (2026-10-13).
+# Intended to reproduce the Yosys 0.68+post environment used for docs/18 and docs/19.
+# Pin the base image by digest once a build has been verified, e.g. alpine:edge@sha256:<digest>.
+FROM alpine:edge
+RUN apk add --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/edge/testing \
+      yosys=0.68-r0 make iverilog python3 py3-numpy \
+ && yosys -V
+WORKDIR /work
+# usage: docker run --rm -v "$PWD:/work" <image> sh scripts/synth_staged.sh <top> "" <files...>
+# CAVEAT: Alpine edge is rolling; yosys=0.68-r0 may disappear from the index. Mirror the .apk (sha256 in tools/setup_yosys_alpine.sh) if so.

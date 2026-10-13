@@ -45,7 +45,7 @@ The SoC pairs an **RV32IM CPU core (PicoRV32 baseline / lowRISC Ibex reference)*
 ## 2. Project Status & Capability Maturity
 
 To maintain engineering rigor, capabilities in this repository are categorized into strict maturity tiers:
-- **Baseline Hardware & RTL:** **SIMULATED & SYNTHESIZED** (All modules verified with 10 testbenches in Icarus Verilog; synthesized in Yosys to Lattice ECP5 at 2,686 LUTs, 4 DSPs).
+- **Baseline Hardware & RTL:** **SIMULATED & SYNTHESIZED** (All modules verified with 10 testbenches in Icarus Verilog; per-module Yosys ECP5 mapping only; whole-SoC synthesis not completed, see docs/19).
 - **Baseline Firmware & Navigation:** **SIMULATED** (Proves the complete CPU -> MMIO NNA -> Safety Interlock -> PWM pipeline in `tb_soc_nav.v` using a *synthetic heuristic policy*).
 - **Genuine RL Policy & Closed-Loop Robotics:** **READY FOR EXECUTION** (Governed by the 6-phase Master Roadmap).
 
@@ -160,18 +160,12 @@ make synth_check
 | `sim/tb_safety_adversarial.v` | Jitter, timeout, physical E-stop lockout & race checks | **PASS (6/6)** |
 | `sim/tb_soc_top.v` | Full SoC integration boot & firmware diagnostic run | **PASS** |
 | `sim/tb_soc_nav.v` | End-to-end SoC navigation execution (5 cycles) | **PASS** |
-| `syn/synth_ecp5.ys` | Yosys synthesis targeting Lattice LFE5U-25F-6BG381C | **PASS** |
+| `scripts/synth_staged.sh` | Staged per-module Yosys `synth_ecp5` (no P&R) | **Per-module COMPLETED; whole SoC INCOMPLETE** |
 
-### Measured FPGA Synthesis Metrics (Lattice ECP5)
-Synthesized with **Yosys Open Synthesis Suite (v0.68)**:
-- **Total Logic Cells (LUT4):** 2,686 LUTs
-  - `picorv32` RV32IM CPU: 1,588 LUTs (59.1%)
-  - `rv_nna` INT8 Accelerator: 494 LUTs (18.4%)
-  - `safety_filter` Hardware Interlock: 112 LUTs (4.2%)
-  - Interconnect & Peripherals (ROM, RAM, UART, Timer, PWM): 492 LUTs (18.3%)
-- **Registers (DFF):** 2,130 D-flip-flops
-- **DSP Multipliers:** 4x `MULT18X18D` blocks (dedicated 4-way parallel SIMD MACs in `nna_mac4.v`)
-- **Memory:** Synthesizable synchronous distributed/block RAM architecture
+### FPGA synthesis status (corrected 2026-10-13)
+- The earlier README figures (2,686 LUT4 total, 2,130 FFs, 4 DSPs, and a `syn/synth_ecp5.ys` script) are **UNVERIFIED and superseded**. That script never existed in the repository.
+- Measured with Yosys 0.68+post (`synth_ecp5 -noabc9`), **each module synthesized separately**: the sum is **7,648 LUT4 and 8 MULT18X18D** with default PicoRV32 parameters (about 9,081 LUT4 with the `soc_top` parameters). This is a sum of separate runs, **not** verified integrated SoC utilization. A whole-SoC synthesis run has not completed.
+- No Fmax, timing or power result exists. See `docs/19_synthesis_handoff_and_status.md`.
 
 ---
 

@@ -1,0 +1,20 @@
+
+3. Printing statistics.
+
+=== nna_mac4 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      441 wires
+      782 wire bits
+      441 public wires
+      782 public wire bits
+        9 ports
+       82 port bits
+      467 cells
+        9   CCU2C
+       90   L6MUX21
+      244   LUT4
+        4   MULT18X18D
+      120   PFUMX
+
