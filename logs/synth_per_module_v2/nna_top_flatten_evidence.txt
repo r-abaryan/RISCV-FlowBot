@@ -1,0 +1,12 @@
+Checking module nna_regs...
+Checking module nna_mac4...
+Checking module nna_core...
+Found and reported 0 problems.
+
+2.3. Executing FLATTEN pass (flatten design).
+Deleting now unused module nna_regs.
+Deleting now unused module nna_mac4.
+Deleting now unused module nna_core.
+<suppressed ~3 debug messages>
+
+725

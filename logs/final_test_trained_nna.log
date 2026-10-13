@@ -1,0 +1,45 @@
+make: Entering directory '/workspace/sim'
+--- Building and Running Trained Policy rv_nna Testbench ---
+iverilog -I/workspace/rtl -o /workspace/sim/tb_nna_trained_policy.vvp \
+	/workspace/rtl/nna/nna_mac4.v \
+	/workspace/rtl/nna/nna_regs.v \
+	/workspace/rtl/nna/nna_core.v \
+	/workspace/rtl/nna/nna_top.v \
+	/workspace/sim/tb_nna_trained_policy.v
+vvp /workspace/sim/tb_nna_trained_policy.vvp
+================================================================================
+ tb_nna_trained_policy: Bit-Exact Hardware Verification (25 Authentic Vectors) 
+================================================================================
+[PASS] Vector  1/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  28, w=  47] (0 LSB Error)
+[PASS] Vector  2/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  48, w=  38] (0 LSB Error)
+[PASS] Vector  3/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  24, w= -21] (0 LSB Error)
+[PASS] Vector  4/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  65, w=   6] (0 LSB Error)
+[PASS] Vector  5/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  43, w=  39] (0 LSB Error)
+[PASS] Vector  6/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  40, w=  57] (0 LSB Error)
+[PASS] Vector  7/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  65, w=   9] (0 LSB Error)
+[PASS] Vector  8/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  29, w=  94] (0 LSB Error)
+[PASS] Vector  9/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  58, w= -22] (0 LSB Error)
+[PASS] Vector 10/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  25, w= -58] (0 LSB Error)
+[PASS] Vector 11/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  68, w= -19] (0 LSB Error)
+[PASS] Vector 12/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  32, w=-108] (0 LSB Error)
+[PASS] Vector 13/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  44, w=  -3] (0 LSB Error)
+[PASS] Vector 14/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  57, w=  35] (0 LSB Error)
+[PASS] Vector 15/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  54, w=  40] (0 LSB Error)
+[PASS] Vector 16/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  57, w= -13] (0 LSB Error)
+[PASS] Vector 17/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  21, w=  66] (0 LSB Error)
+[PASS] Vector 18/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  45, w= -41] (0 LSB Error)
+[PASS] Vector 19/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  51, w=  -9] (0 LSB Error)
+[PASS] Vector 20/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  51, w= -20] (0 LSB Error)
+[PASS] Vector 21/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  75, w=   4] (0 LSB Error)
+[PASS] Vector 22/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  29, w= -79] (0 LSB Error)
+[PASS] Vector 23/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  41, w= -32] (0 LSB Error)
+[PASS] Vector 24/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  41, w=  20] (0 LSB Error)
+[PASS] Vector 25/25: L1 Cycles=50 | L2 Cycles= 8 | Action [v=  28, w=  36] (0 LSB Error)
+--------------------------------------------------------------------------------
+[SUMMARY] All 25/25 Authentic Observation Vectors Passed with 0 LSB Error!
+Layer 1 Cycles/Inference: 50
+Layer 2 Cycles/Inference: 8
+Total NN Hardware Cycles: 58 (Theoretical: 60 cycles)
+================================================================================
+/workspace/sim/tb_nna_trained_policy.v:478: $finish called at 100070000 (1ps)
+make: Leaving directory '/workspace/sim'

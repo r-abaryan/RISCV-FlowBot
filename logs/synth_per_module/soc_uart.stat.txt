@@ -1,0 +1,18 @@
+
+5. Printing statistics.
+
+=== soc_uart ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       27 wires
+      137 wire bits
+       27 public wires
+      137 public wire bits
+       11 ports
+      107 port bits
+       34 cells
+       16   LUT4
+        1   PFUMX
+       17   TRELLIS_FF
+

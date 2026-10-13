@@ -1,0 +1,29 @@
+make: Entering directory '/workspace/sim'
+--- Assembling Bare-metal Firmware ---
+python3 /workspace/sw/firmware/assemble.py /workspace/sw/firmware/soc_firmware.s /workspace/sw/firmware/firmware.hex
+Assembled 73 instructions (292 bytes) successfully.
+Using pre-built hex files (riscv-none-elf-as not found in PATH)
+--- Building and Running Full SoC Integration Testbench ---
+iverilog -I/workspace/rtl -DROM_INIT_FILE=\"/workspace/sw/firmware/firmware.hex\" \
+	-o /workspace/sim/tb_soc_top.vvp /workspace/rtl/nna/nna_mac4.v /workspace/rtl/nna/nna_regs.v /workspace/rtl/nna/nna_core.v /workspace/rtl/nna/nna_top.v /workspace/rtl/safety/safety_filter.v /workspace/rtl/periph/soc_uart.v /workspace/rtl/periph/soc_timer.v /workspace/rtl/periph/soc_pwm.v /workspace/rtl/bus/soc_interconnect.v /workspace/rtl/mem/soc_rom.v /workspace/rtl/mem/soc_ram.v /workspace/rtl/cpu/picorv32.v /workspace/rtl/soc_top.v /workspace/sim/tb_soc_top.v
+vvp /workspace/sim/tb_soc_top.vvp
+WARNING: /workspace/rtl/mem/soc_rom.v:35: $readmemh(/workspace/sw/firmware/firmware.hex): Not enough words in the file for the requested range [0:2047].
+
+=======================================================
+   STARTING RISC-V ROBOT SOC FULL SYSTEM SIMULATION    
+   ROM: /workspace/sw/firmware/firmware.hex
+=======================================================
+[TB] System reset deasserted at time 100000 ns
+SoC
+K
+=======================================================
+ SUCCESS: Robot SoC End-to-End System Test PASSED!    
+ Cycles taken: 523
+ NNA Inference Result in RAM[0x100]: 0x000000ea
+ NNA Execution Latency in RAM[0x104]: 3 cycles
+ PWM Left Command:  42 (0x002a)
+ PWM Right Command: 0 (0x0000)
+ Safety Interlock Disarmed: 0 (0 = Armed/Operational)
+=======================================================
+
+make: Leaving directory '/workspace/sim'

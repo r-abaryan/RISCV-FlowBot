@@ -3,7 +3,7 @@
 **Project:** RISC-V SoC for Mobile Robot Control (`rv_nna`)  
 **Document:** `docs/16_phase4_closed_loop_cosim_report.md`  
 **Date:** October 2026  
-**Status:** COMPLETE & PASSING (0 LSB Discrepancy)  
+**Status:** Bit-exact integration checks (RTL vs Python INT8 model) passed; this is NOT a navigation-success result. Trajectory table is invalid (pre-fix action mapping) and 20-step vs 10-step is UNVERIFIED. Steering normalization and negative-velocity handling remain TO VERIFY.  
 
 ---
 
@@ -14,7 +14,7 @@ Phase 4 bridges the boundary between pure Python robotics simulation and cycle-a
 Over an extended multi-step simulation trajectory:
 1. **Bit-Exact Numerical Fidelity:** The simulated RISC-V SoC matched the Python INT8 reference quantization model bit-for-bit (0 LSB error across all execution steps).
 2. **Deterministic Safety Protection:** When approaching obstacles within the critical safety envelope (distance < 0.45 m), the hardware deterministic safety filter executed in firmware clamped forward velocity `v_cmd` to 0, preventing collision while permitting defensive steering maneuvers (`w_cmd`).
-3. **Execution Latency:** The full control loop—including sensor observation intake, two-layer NNA inference (16->8 ReLU, 8->2 Clip), deterministic safety evaluation, differential PWM computation, and watchdog heartbeat refresh—completed in an average of **3,302 cycles** (66.04 microseconds at a 50 MHz clock). This consumes only **0.66 percent** of a standard 100 Hz (10 ms) mobile robotics control loop, leaving over 99 percent of CPU time available for high-level SLAM, communication, and path planning.
+3. **Execution Latency (HISTORICAL, UNVERIFIED, from invalidated run):** The full control loop—including sensor observation intake, two-layer NNA inference (16->8 ReLU, 8->2 Clip), deterministic safety evaluation, differential PWM computation, and watchdog heartbeat refresh—completed in an average of **3,302 cycles** (66.04 microseconds at a 50 MHz clock). This consumes only **0.66 percent** of a standard 100 Hz (10 ms) mobile robotics control loop, leaving over 99 percent of CPU time available for high-level SLAM, communication, and path planning.
 
 ---
 
@@ -113,7 +113,9 @@ Time / Cycles  Operation
 
 ## 4. Multi-Step Co-Simulation Results
 
-The co-simulation was evaluated across multi-step trajectories in the 2D obstacle navigation environment. The table below lists the execution trace for a representative 20-step trajectory:
+The co-simulation was evaluated across multi-step trajectories in the 2D obstacle navigation environment. > **INVALIDATED:** The 20-step trajectory table below and the derived metrics in 4.1 (20 steps, 10/20 safety interventions, 50 percent) were produced with the pre-fix action mapping, and the 20-step vs 10-step count is UNVERIFIED. They are retained as history only and must not be cited as results.
+
+Historical (INVALIDATED) 20-step trace:
 
 | Step | Robot Position (x, y) | Heading (rad) | Raw Policy (v, w) | Safe Output (v, w) | Safety Filter | PWM Duty (L, R) | CPU Cycles |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -138,7 +140,8 @@ The co-simulation was evaluated across multi-step trajectories in the 2D obstacl
 | 19 | (-0.05, +2.61) | -0.88 | (+21, -80) | (+21, -80) | PASS (Path Clear) | (894, 269) | 3,295 |
 | 20 | (-0.02, +2.57) | -0.97 | (+32, -69) | (+32, -69) | PASS (Path Clear) | (894, 355) | 3,295 |
 
-### 4.1 Numerical Verification Metrics
+### 4.1 Numerical Verification Metrics (HISTORICAL, INVALIDATED where noted)
+> The 20-step count, the 10-of-20 intervention rate and the 50 percent figure are INVALIDATED. Latency figures (3,302 cycles, 66.04 us, 99.34 percent headroom) come from the same invalidated run and are UNVERIFIED pending re-measurement.
 - **Total Steps Executed:** 20 steps
 - **Max Discrepancy between SoC and Python Model:** **0 LSB** (100 percent bit-exact equivalence)
 - **Safety Interventions:** 10 of 20 steps (50 percent) triggered the deterministic safety clamp

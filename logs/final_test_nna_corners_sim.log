@@ -1,0 +1,41 @@
+make: Entering directory '/workspace/sim'
+--- Building and Running NNA RTL Corner-Case Verification Testbench ---
+iverilog -I/workspace/rtl -o /workspace/sim/tb_nna_corner_cases.vvp \
+	/workspace/rtl/nna/nna_mac4.v \
+	/workspace/rtl/nna/nna_regs.v \
+	/workspace/rtl/nna/nna_core.v \
+	/workspace/rtl/nna/nna_top.v \
+	/workspace/sim/tb_nna_corner_cases.v
+vvp /workspace/sim/tb_nna_corner_cases.vvp
+===============================================================
+=== STARTING RV_NNA RTL CORNER-CASE & BOUNDARY VERIFICATION ===
+===============================================================
+[TEST 1] Maximum Positive Saturation Clamping (+127)
+[TEST 1] Readback Word 0: 0x7f7f7f7f (Expected: 0x7f7f7f7f)
+[TEST 1 PASSED] Clamped correctly to +127 across all SIMD lanes.
+[TEST 2] Maximum Negative Saturation (Linear Clamping to -128)
+[TEST 2] Readback Word 0: 0x80808080 (Expected: 0x80808080)
+[TEST 2 PASSED] Clamped correctly to -128.
+[TEST 3] Negative Product with ReLU Activation (Clamp to 0)
+[TEST 3] Readback Word 0: 0x00000000 (Expected: 0x00000000)
+[TEST 3 PASSED] ReLU clamped negative values to 0.
+[TEST 4] Alternating Sign Dot-Product Cancellation
+[TEST 4] Readback Word 0: 0x00000000 (Expected: 0x00000000)
+[TEST 4 PASSED] Signed dot products cancelled exactly to 0.
+[TEST 5] Extreme Bias Addition Override
+[TEST 5] Readback Word 0: 0x00000032 (Expected byte 0: 0x32)
+[TEST 5 PASSED] Bias addition correctly offset negative sum to +50.
+[TEST 6] Requantization Shift = 0 Scaling
+[TEST 6] Readback Word 0: 0x0000004b (Expected byte 0: 0x4B)
+[TEST 6 PASSED] Shift=0 correctly multiplied acc by 3 without shift.
+[TEST 7] Invalid Dimension Error Trapping (K=5)
+[TEST 7] Status Readback: 0x00000006
+[TEST 7 PASSED] Invalid dimension properly rejected with STATUS.ERROR=1.
+[TEST 8] Hardware Auto-Copy Buffer Chaining (Layer Execution with Auto-Copy)
+[TEST 8] Output Buffer Word 0: 0x281e140a (Expected: 0x281e140a)
+[TEST 8] Auto-Copied Input Buffer Word 0: 0x281e140a (Expected: 0x281e140a)
+[TEST 8 PASSED] Hardware auto-copy buffer chaining verified successfully.
+===============================================================
+=== ALL 8 RV_NNA RTL CORNER-CASE TESTS PASSED SUCCESSFULLY! ===
+===============================================================
+make: Leaving directory '/workspace/sim'

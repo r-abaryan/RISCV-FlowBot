@@ -1,0 +1,19 @@
+make: Entering directory '/workspace/sim'
+--- Running Python INT8 Accelerator Corner-Case & Fuzzing Suite ---
+python3 /workspace/sw/test/test_nna_corners.py
+======================================================================
+Running INT8 Neural Accelerator Golden Model Corner-Case Tests
+======================================================================
+[PASS] Case 1: Max Positive Saturation -> Y=[127, 127] (acc=258064)
+[PASS] Case 2: Max Negative Saturation (Linear) -> Y=[-128, -128] (acc=-260096)
+[PASS] Case 3: Max Negative with ReLU -> Y=[0, 0]
+[PASS] Case 4: Alternating Sign Cancellation -> Y=[0, 0] (acc=0)
+[PASS] Case 5: Large Positive Bias Override -> Y=[50] (acc=50)
+[PASS] Case 6: Shift = 0 Scaling -> Y=[75]
+[PASS] Case 7: Requantization Rounding Offset -> 2->1, 1->0
+[PASS] Case 8: Min Config (K=4, M=1) -> Clip=-128, ReLU=0
+----------------------------------------------------------------------
+Running 50 Randomized Fuzzing Layers...
+[PASS] All 58 Golden Model & Fuzzing Tests Passed Successfully!
+======================================================================
+make: Leaving directory '/workspace/sim'

@@ -1,0 +1,20 @@
+
+5. Printing statistics.
+
+=== soc_timer ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      399 wires
+     1392 wire bits
+      399 public wires
+     1392 public wire bits
+       11 ports
+      107 port bits
+      656 cells
+       64   CCU2C
+        3   L6MUX21
+      318   LUT4
+      108   PFUMX
+      163   TRELLIS_FF
+

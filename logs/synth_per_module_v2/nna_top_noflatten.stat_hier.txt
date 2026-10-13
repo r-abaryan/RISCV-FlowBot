@@ -1,0 +1,106 @@
+6. Printing statistics.
+
+=== nna_top ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       45 wires
+      389 wire bits
+       45 public wires
+      389 public wire bits
+       10 ports
+      106 port bits
+       13 cells
+        1   L6MUX21
+       10   LUT4
+        2   PFUMX
+        2 submodules
+        1   nna_core
+        1   nna_regs
+
+=== nna_regs ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     5050 wires
+    11303 wire bits
+     5050 public wires
+    11303 public wire bits
+       33 ports
+      341 port bits
+     7363 cells
+      272   L6MUX21
+     4793   LUT4
+      863   PFUMX
+      352   TRELLIS_DPR16X4
+     1083   TRELLIS_FF
+
+=== nna_core ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      859 wires
+     3161 wire bits
+      859 public wires
+     3161 public wire bits
+       28 ports
+      260 port bits
+     1376 cells
+      146   CCU2C
+       80   L6MUX21
+      796   LUT4
+        4   MULT18X18D
+      211   PFUMX
+      139   TRELLIS_FF
+        1 submodules
+        1   nna_mac4
+
+=== nna_mac4 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      441 wires
+      782 wire bits
+      441 public wires
+      782 public wire bits
+        9 ports
+       82 port bits
+      467 cells
+        9   CCU2C
+       90   L6MUX21
+      244   LUT4
+        4   MULT18X18D
+      120   PFUMX
+
+=== design hierarchy ===
+
+        +----------Count including submodules.
+        | 
+     9219 nna_top
+     1376 nna_core
+      467   nna_mac4
+     7363 nna_regs
+
+        +----------Count including submodules.
+        | 
+     6395 wires
+    15635 wire bits
+     6395 public wires
+    15635 public wire bits
+       80 ports
+      789 port bits
+        - memories
+        - memory bits
+        - processes
+     9219 cells
+      155   CCU2C
+      443   L6MUX21
+     5843   LUT4
+        8   MULT18X18D
+     1196   PFUMX
+      352   TRELLIS_DPR16X4
+     1222   TRELLIS_FF
+        2 submodules
+        1   nna_core
+        1   nna_regs
+

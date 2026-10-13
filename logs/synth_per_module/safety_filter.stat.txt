@@ -1,0 +1,20 @@
+
+5. Printing statistics.
+
+=== safety_filter ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      143 wires
+      540 wire bits
+      143 public wires
+      540 public wire bits
+       11 ports
+      107 port bits
+      297 cells
+       16   CCU2C
+       12   L6MUX21
+      179   LUT4
+       23   PFUMX
+       67   TRELLIS_FF
+
