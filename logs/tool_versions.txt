@@ -1,0 +1,6 @@
+# Tool versions (sandbox, 2026-10-13)
+iverilog: Icarus Verilog version 12.0 (stable) ()
+make: GNU Make 4.4.1
+python3: Python 3.12.15
+numpy: 2.3.5
+yosys: not installed

@@ -1,0 +1,22 @@
+make: Entering directory '/workspace/sim'
+--- Building and Running NNA Accelerator Testbench ---
+iverilog -I/workspace/rtl -o /workspace/sim/tb_nna_top.vvp \
+	/workspace/rtl/nna/nna_mac4.v \
+	/workspace/rtl/nna/nna_regs.v \
+	/workspace/rtl/nna/nna_core.v \
+	/workspace/rtl/nna/nna_top.v \
+	/workspace/sim/tb_nna_top.v
+vvp /workspace/sim/tb_nna_top.vvp
+=== TB_NNA_TOP: Starting Test ===
+[Test 1] Writing configuration registers...
+CONFIG_DIM readback: 0x00080010 (expected 0x00080010)
+[Test 2] Loading Input activations into Scratchpad...
+[Test 3] Loading Biases...
+[Test 4] Loading Weight matrix (32 words)...
+[Test 5] Triggering NNA inference...
+Execution finished! STATUS=0x00000002
+Layer executed in 48 clock cycles
+Output Word 0 (Neurons 0-3): 0x0000507f
+SUCCESS: Neuron 0 (127/0x7F) and Neuron 1 (80/0x50) match exact expected values!
+=== TB_NNA_TOP: ALL TESTS PASSED SUCCESSFULLY! ===
+make: Leaving directory '/workspace/sim'
