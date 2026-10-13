@@ -3,7 +3,7 @@
 **Project:** RISC-V SoC for Mobile Robot Control (`rv_nna`)  
 **Document:** `docs/16_phase4_closed_loop_cosim_report.md`  
 **Date:** October 2026  
-**Status:** COMPLETE & PASSING (0 LSB Discrepancy)  
+**Status:** Bit-exact integration checks (RTL vs Python INT8 model) passed; this is NOT a navigation-success result. Trajectory table is invalid (pre-fix action mapping) and 20-step vs 10-step is UNVERIFIED. Steering normalization and negative-velocity handling remain TO VERIFY.  
 
 ---
 

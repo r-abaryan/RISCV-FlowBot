@@ -94,10 +94,10 @@ make test_py test_nna_corners sim_all
 | `sim_nna_corners` | RTL NNA Corner Testbench | **PASS** | Signed saturation limits ($+127, -128$) verified |
 | `sim_safety_adv` | RTL Adversarial Safety | **PASS** | 6 adversarial scenarios verified (lockout, race condition) |
 | `sim_soc` | Full SoC System Simulation | **PASS** | Boot ROM, UART output, PWM drive in 523 cycles |
-| `sim_nav` | Full SoC Navigation Sim | **PASS** | 5 navigation cycles with synthetic policy verified |
+| `sim_nav` | Full SoC Navigation Sim | **PASS** | 5 navigation cycles with synthetic policy; testbench exit status only |
 | `synth_check` | Yosys ECP5 Technology Mapping | **PASS** | Elaboration check only (read_verilog, hierarchy, check). The earlier 82.3 s / 2,686 LUT / 4 DSP figures are UNVERIFIED and superseded (docs/19) |
 
-**Total Regression Status: 10 out of 10 Targets PASSED (0 Errors, 0 Warnings).**
+**Historical status (superseded):** the earlier "10/10 PASSED, 0 Warnings" line was not backed by retained logs. Current evidence: logs/final_*.log and docs/21. `synth_check` is elaboration only. PASS on simulation rows means that testbench exited 0 on its own checks; it does not mean robot navigation succeeds.
 
 ---
 

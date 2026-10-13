@@ -10,12 +10,14 @@ MIRROR=${MIRROR:-https://dl-cdn.alpinelinux.org/alpine/edge}
 # sha256 of the yosys-0.68-r0.apk that was verified in this project (2026-10-13).
 # NOTE: Alpine edge is rolling and removes old files; if the pin no longer matches, see docs/19.
 PIN_SHA256=1f90663ec1751555db1beba3326c3fc3803b80de9f5ea57d6383760cb6696d44
+# WARNING: PIN_SHA256 is documentation only; apk verifies signatures via its keys, this script does NOT compare the hash.
 if [ ! -x "$YROOT/usr/bin/yosys" ]; then
   mkdir -p "$YROOT"
   apk add --root "$YROOT" --initdb --no-scripts --no-cache \
     --keys-dir /etc/apk/keys \
     --repository "$MIRROR/main" --repository "$MIRROR/testing" yosys
 fi
+# HOST MODIFICATION: creates symlink /usr/bin/abc outside $YROOT (Yosys hard-codes that path). Remove with: rm /usr/bin/abc
 # Yosys hard-codes /usr/bin/abc as its ABC executable. abc only needs musl, so a symlink is enough.
 if [ ! -e /usr/bin/abc ]; then ln -s "$YROOT/usr/bin/abc" /usr/bin/abc; fi
 cat > "$YROOT/env.sh" <<ENV
