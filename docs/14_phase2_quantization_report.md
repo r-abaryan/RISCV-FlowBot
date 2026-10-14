@@ -69,21 +69,11 @@ Y_m = clamp( round((acc_32[m] * M_mult) / 2^(S_shift)), -128, 127 )
 Validation was conducted over 50 randomized simulation episodes (seeds 1000..1049) using `sw/test/verify_quantization.py`. The resulting metrics are reconciled with `sw/policy/quantization_analysis.json`.
 
 ### 3.1 Error & Fidelity Metrics
-- **Evaluated Observation Count:** 544 samples across 50 closed-loop navigation episodes. (Earlier drafts erroneously cited 2,229 samples; the actual verified count is 544).
-- **Linear Velocity v:**
-  - Mean Absolute Error (MAE): 0.0210 m/s
-  - Signal-to-Noise Ratio (SNR): 15.65 dB
-  - Max Absolute Error: 0.0573 m/s
-  - Pearson Correlation: 0.9998
-- **Angular Velocity w:**
-  - Mean Absolute Error (MAE): 0.0211 rad/s
-  - Signal-to-Noise Ratio (SNR): 14.15 dB
-  - Max Absolute Error: 0.0461 rad/s
-  - Pearson Correlation: 0.9996
-- **Overall Statistics:**
-  - Mean Action Error: 0.0211 (approx 1.6% of dynamic range)
-  - Max Error across all samples: 0.0573 (approx 4.5% of dynamic range)
-  - Action Cosine Similarity: 0.9997
+- **Evaluated Observation Count:** 3986 samples across 50 closed-loop episodes (seeds 1000..1049, `max_steps=150`, mean 79.7 steps per episode, 2 episodes ran to the 150 step limit). Reproduced 2026-10-14 by `sw/test/verify_quantization.py`; matches `num_samples` in `sw/policy/quantization_analysis.json`. Earlier figures of 544, 2,000 and 2,229 in older drafts are not supported by any code path (see docs/27).
+- **Linear Velocity v:** MAE 0.0060, Max Error 0.0309, RMSE 0.0076, SNR 33.54 dB, Pearson 0.9989
+- **Angular Velocity w:** MAE 0.0125, Max Error 0.1732, RMSE 0.0165, SNR 29.04 dB, Pearson 0.9996
+- **Overall:** mean action error (MAE) 0.0093, max error 0.1732. SNR = 10 log10(mean(float^2) / mean(error^2)), computed in `verify_quantization.py`.
+- Cosine similarity: not stored in the JSON. Recomputed 2026-10-14 on the same data: 0.9995 pooled over all samples, 0.9984 mean of per-sample cosines. The older 0.9997 is unsupported.
 
 ### 3.2 Closed-Loop Task Performance (50 Evaluation Episodes)
 

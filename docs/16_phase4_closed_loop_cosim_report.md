@@ -159,7 +159,7 @@ The table below summarizes the comprehensive verification regression across all 
 |:---|:---|:---|:---:|
 | `test_py` | INT8 reference model and e2e navigation test | Python 3 | PASS (100%) |
 | `test_nna_corners` | INT8 accelerator corner cases and fuzzing (1,000 vectors) | Python 3 | PASS (1,000/1,000) |
-| `test_quant` | Range-aware INT8 quantization retention audit | Python 3 | PASS (28.43 dB SNR) |
+| `test_quant` | Range-aware INT8 quantization retention audit | Python 3 | PASS (33.54 dB (v) / 29.04 dB (w) SNR) |
 | `sim_nna` | Standalone `rv_nna` accelerator interface testbench | Icarus Verilog | PASS |
 | `sim_safety` | Hardware safety filter trip, disarm, and heartbeat testbench | Icarus Verilog | PASS |
 | `sim_nna_corners` | RTL SIMD MAC saturation and rounding corner testbench | Icarus Verilog | PASS |

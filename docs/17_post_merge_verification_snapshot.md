@@ -14,3 +14,5 @@ Branch: flowbot/post-merge-verification-fixes. Status per owner finding:
 | 8 | FPGA readiness wording | NOT DONE | Only RTL simulation and Yosys synthesis elaboration exist. No timing closure, no hardware run, no physical safety validation. |
 
 Superseded: tool versions and logs now exist (logs/, docs/18, docs/19, docs/21). Yosys was installed later via tools/setup_yosys_alpine.sh; per-module synthesis only, whole-SoC synthesis not completed.
+
+> **Update 2026-10-14:** the 3986 vs 2000 sample question is RESOLVED: 3986 is correct (docs/27). Statements here that call it unresolved are superseded.
