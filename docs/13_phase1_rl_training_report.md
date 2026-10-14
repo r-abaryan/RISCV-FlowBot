@@ -127,7 +127,7 @@ The evaluation benchmark (`sw/test/test_policy_eval.py`) evaluated 4 configurati
 4. **INT8 vs Float Retention >= 90%:** **PASS** (Achieved **100.0%** retention: 78.0% vs 78.0%).
 
 *Note on Sample Counts & Vector Extraction:*
-Evaluating 50 episodes yielded a total of 544 executed navigation steps. From these 544 steps, 25 representative vectors were extracted across the trajectory for bit-exact Verilog RTL regression in `sim/tb_nna_trained_policy.v`.
+Evaluating 50 episodes (seeds 1000..1049) yielded a total of 3986 executed navigation steps (see docs/27). From these 3986 steps, 25 representative vectors were extracted across the trajectory for bit-exact Verilog RTL regression in `sim/tb_nna_trained_policy.v`.
 
 ---
 

@@ -14,3 +14,5 @@ Tools: iverilog 12.0 and numpy 2.3.5 (Alpine apk). "Exit 0" only; I did not inde
 
 ## Not run
 test_cosim (about 5 s/step, exceeds call limit), synth_check / Yosys (not installed in this session), whole-SoC synthesis, multi-seed full episodes, BRAM optimization (separate follow-ups).
+
+> **Update 2026-10-14:** the 3986 vs 2000 sample question is RESOLVED: 3986 is correct (docs/27). Statements here that call it unresolved are superseded.

@@ -21,6 +21,8 @@ The review reconciles discrepancies between the training report, quantization re
 
 A comprehensive audit of `docs/13_phase1_rl_training_report.md`, `docs/14_phase2_quantization_report.md`, `sw/policy/quantization_analysis.json`, and benchmark test suites resolved the following discrepancies:
 
+> **Superseded 2026-10-14 (docs/27).** Sections 1.1 and 1.2 below were an earlier reconciliation that adopted 544 samples, 15.65/14.15 dB SNR and 0.9997 cosine similarity. Re-running `sw/test/verify_quantization.py` and the committed `quantization_analysis.json` gives 3986 samples, 33.54/29.04 dB SNR. Those earlier figures are NOT reproduced by any code in the repository. The text is kept only as history.
+
 ### 1.1 Sample Counts & Episode Breakdown
 - **Observed Discrepancy:** `docs/14_phase2_quantization_report.md` initially claimed "2,229 samples across complete navigation trajectories", whereas `sw/policy/quantization_analysis.json` recorded 544 samples, and `sim/tb_nna_trained_policy.v` tested 25 vectors.
 - **Reconciliation & Root Cause:**

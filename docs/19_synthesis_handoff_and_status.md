@@ -53,3 +53,5 @@ Not completed. Flat run (`RUN_TAG=soc_top`) and `-noflatten` run (`RUN_TAG=soc_t
 3. Await the owner's decision on: BRAM optimization task, opening a PR for this branch.
 
 Note: the full stage logs (log1-log5, about 6,800 lines) were left out of the git history to keep the push reviewable. Only `log5_tail.txt` (last 30 lines of the partial stage-5 log) is kept in `logs/synth_soc_top_flat_incomplete/`. Re-running `scripts/synth_staged.sh` regenerates them.
+
+> **Update 2026-10-14:** the 3986 vs 2000 sample question is RESOLVED: 3986 is correct (docs/27). Statements here that call it unresolved are superseded.
