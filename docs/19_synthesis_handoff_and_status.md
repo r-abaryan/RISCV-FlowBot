@@ -55,3 +55,6 @@ Not completed. Flat run (`RUN_TAG=soc_top`) and `-noflatten` run (`RUN_TAG=soc_t
 Note: the full stage logs (log1-log5, about 6,800 lines) were left out of the git history to keep the push reviewable. Only `log5_tail.txt` (last 30 lines of the partial stage-5 log) is kept in `logs/synth_soc_top_flat_incomplete/`. Re-running `scripts/synth_staged.sh` regenerates them.
 
 > **Update 2026-10-14:** the 3986 vs 2000 sample question is RESOLVED: 3986 is correct (docs/27). Statements here that call it unresolved are superseded.
+
+## 9. M8B workflow (added, NOT yet run)
+`ci/synth-soc-top.workflow.yml` (to be copied by the owner to `.github/workflows/synth-soc-top.yml`; pushes touching .github/workflows are blocked for the agent; workflow_dispatch only, 120 min timeout) builds Yosys from commit c12172fb, checks `yosys -V` against it, runs the flat `scripts/synth_staged.sh soc_top`, and uploads all logs as an artifact. It has not been run or validated. Results (LUT4, MULT18X18D, DP16KD, FF counts only) must be taken from the artifact and recorded here once a run completes. No timing or Fmax is produced. The build from source may differ from the Alpine 0.68-r0 package; compare the version strings.

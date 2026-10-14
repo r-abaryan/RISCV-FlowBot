@@ -1,0 +1,48 @@
+# Manual-only flat synth_ecp5 of soc_top (M8B). Counts only: no timing, no Fmax, no place-and-route, no board result.
+# Yosys is built from the pinned upstream commit; the job fails if `yosys -V` does not report that commit.
+name: synth-soc-top
+on:
+  workflow_dispatch:
+    inputs:
+      yosys_commit:
+        description: "Yosys git commit to build (default: pinned c12172fb, 0.68+post)"
+        default: "c12172fb"
+permissions:
+  contents: read
+jobs:
+  synth:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang bison flex libreadline-dev gawk tcl-dev libffi-dev git pkg-config python3 zlib1g-dev
+      - name: Build pinned Yosys
+        run: |
+          git clone https://github.com/YosysHQ/yosys.git "$RUNNER_TEMP/yosys"
+          cd "$RUNNER_TEMP/yosys"
+          git checkout "${{ inputs.yosys_commit }}"
+          git submodule update --init --recursive
+          make -j"$(nproc)" > "$RUNNER_TEMP/yosys_build.log" 2>&1 || { tail -50 "$RUNNER_TEMP/yosys_build.log"; exit 1; }
+          sudo make install >> "$RUNNER_TEMP/yosys_build.log" 2>&1
+          mkdir -p "$GITHUB_WORKSPACE/synth_out"
+          { yosys -V; git rev-parse HEAD; } | tee "$GITHUB_WORKSPACE/synth_out/yosys_version.txt"
+          grep -q "${{ inputs.yosys_commit }}" "$GITHUB_WORKSPACE/synth_out/yosys_version.txt" || { echo "version mismatch"; exit 1; }
+      - name: Flat synth_ecp5 soc_top (no runtime claim; keep all logs)
+        run: |
+          set +e
+          BUDGET=6000 RUN_TAG=soc_top scripts/synth_staged.sh soc_top "" \
+            rtl/nna/*.v rtl/safety/*.v rtl/periph/*.v rtl/mem/*.v rtl/bus/*.v rtl/cpu/picorv32.v rtl/soc_top.v \
+            2>&1 | tee synth_out/run.log
+          echo "exit ${PIPESTATUS[0]}" | tee synth_out/exit.txt
+        shell: bash
+      - name: Collect
+        if: always()
+        run: cp -r build/syn/soc_top synth_out/ 2>/dev/null || true; cp "$RUNNER_TEMP"/yosys_build.log synth_out/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: soc_top-flat-synth
+          path: synth_out/
