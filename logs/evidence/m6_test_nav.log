@@ -1,0 +1,61 @@
+make: Entering directory '/workspace/sim'
+--- Assembling Bare-metal Firmware ---
+python3 /workspace/sw/firmware/assemble.py /workspace/sw/firmware/soc_firmware.s /workspace/sw/firmware/firmware.hex
+Assembled 73 instructions (292 bytes) successfully.
+Using pre-built hex files (riscv-none-elf-as not found in PATH)
+--- Building and Running End-to-End Robot Navigation Testbench ---
+iverilog -I/workspace/rtl -DROM_INIT_FILE=\"/workspace/sw/firmware/robot_nav.hex\" \
+	-o /workspace/sim/tb_soc_nav.vvp /workspace/rtl/nna/nna_mac4.v /workspace/rtl/nna/nna_regs.v /workspace/rtl/nna/nna_core.v /workspace/rtl/nna/nna_top.v /workspace/rtl/safety/safety_filter.v /workspace/rtl/periph/soc_uart.v /workspace/rtl/periph/soc_timer.v /workspace/rtl/periph/soc_pwm.v /workspace/rtl/bus/soc_interconnect.v /workspace/rtl/mem/soc_rom.v /workspace/rtl/mem/soc_ram.v /workspace/rtl/cpu/picorv32.v /workspace/rtl/soc_top.v /workspace/sim/tb_soc_nav.v
+vvp /workspace/sim/tb_soc_nav.vvp
+WARNING: /workspace/rtl/mem/soc_rom.v:35: $readmemh(/workspace/sw/firmware/robot_nav.hex): Not enough words in the file for the requested range [0:2047].
+
+=======================================================
+   STARTING RISC-V ROBOT NAVIGATION SOC SIMULATION     
+   ROM: /workspace/sw/firmware/robot_nav.hex
+=======================================================
+[TB] System reset deasserted at time 100000 ns
+[TB ASSERT] PWM Duty Cycle Written #1: Left=0x0000 (0), Right=0x0000 (0) at time 3010000 ns
+
+=== RISC-V Mobile Robot Navigation SoC Online ===
+[CORE] RV32IM CPU @ 50MHz
+[ACCEL] rv_nna INT8 4-way SIMD
+[SAFETY] Deterministic Interlock Armed
+
+[CYCLE 1] Open Corridor Navigation Test
+[TB ASSERT] NNA completed Layer 2 inference #1: v_raw=0x17, w_raw=0x07 at time 299510000 ns
+[TB ASSERT] PWM Duty Cycle Written #2: Left=0x0232 (562), Right=0x0269 (617) at time 305850000 ns
+  [TELEMETRY] v_cmd: 0x17 | w_cmd: 0x07 | PWM_L: 0x0232 | PWM_R: 0x0269
+
+[CYCLE 2] Obstacle on Left Avoidance Test
+[TB ASSERT] NNA completed Layer 2 inference #2: v_raw=0xe8, w_raw=0x7f at time 530710000 ns
+[TB ASSERT] PWM Duty Cycle Written #3: Left=0x0000 (0), Right=0x0386 (902) at time 537070000 ns
+  [TELEMETRY] v_cmd: 0xE8 | w_cmd: 0x7F | PWM_L: 0x0000 | PWM_R: 0x0386
+
+[CYCLE 3] Emergency Wall Ahead Safety Test
+[TB ASSERT] NNA completed Layer 2 inference #3: v_raw=0x17, w_raw=0x41 at time 763190000 ns
+  >>> [SAFETY OVERRIDE] Critical Obstacle Detected! Clamping Velocity to ZERO <<<
+[TB ASSERT] PWM Duty Cycle Written #4: Left=0x00f6 (246), Right=0x02f1 (753) at time 874090000 ns
+  [TELEMETRY] v_cmd: 0x00 | w_cmd: 0x41 | PWM_L: 0x00F6 | PWM_R: 0x02F1
+
+
+=======================================================
+   VERIFYING MEANINGFUL HARDWARE ASSERTIONS           
+=======================================================
+ [ASSERT 1 PASS] NNA accelerator executed exactly 6 layer evaluations (3 x 2-layer passes)
+ [ASSERT 2 PASS] Cycle 1 raw policy output verified: v=0x17 (+23), w=0x07 (+7)
+ [ASSERT 3 PASS] Cycle 2 raw policy output verified: v=0xE8 (-24), w=0x7F (+127)
+ [ASSERT 4 PASS] Cycle 3 raw policy output verified: v=0x17 (+23), w=0x41 (+65)
+ [ASSERT 5 PASS] Cycle 1 PWM balanced forward drive: L=0x0232, R=0x0269
+ [ASSERT 6 PASS] Cycle 2 PWM sharp right turn: L=0x0000, R=0x0386
+ [ASSERT 7 PASS] Cycle 3 Safety Override verified: v_cmd clamped to 0, PWM L=0x00f6, R=0x02f1
+ [ASSERT 8 PASS] Safety interlock armed, watchdog refreshed, no trip (actuator_disarm=0)
+
+=======================================================
+ SUCCESS: All 8 Navigation SoC Hardware Assertions PASSED!
+ Total Simulation Cycles: 49406
+ Final PWM Left Cmd:  246 (0x00f6)
+ Final PWM Right Cmd: 753 (0x02f1)
+ Actuator Disarm:     0 (0 = Normal/Armed)
+=======================================================
+
+make: Leaving directory '/workspace/sim'

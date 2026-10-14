@@ -156,6 +156,7 @@ def run_cosim(args):
         ep_cycles = 0
 
         print(f"\n--- Episode {ep_idx + 1}/{args.episodes} (Seed {args.seed + ep_idx}) ---")
+        ep_outcome = "harness_step_limit_no_terminal_event"
         print("Step | Pos (x, y)    | Heading | Raw (v, w) | Safe (v, w)| Trip | PWM (L, R) | Cycles")
         print("-" * 78)
 
@@ -216,12 +217,14 @@ def run_cosim(args):
             })
 
             if done:
+                ep_outcome = "success" if info.get('success') else ("collision" if info.get('collision') else ("step_limit_timeout" if info.get("timeout") else "harness_step_limit_no_terminal_event"))
                 print(f"Finished at step {st+1}: Success={info.get('success')}, Collision={info.get('collision')}")
                 break
 
         all_episodes.append({
             "episode": ep_idx + 1,
             "steps": len(ep_history),
+            "navigation_outcome": ep_outcome,
             "safety_trips": ep_trips,
             "total_cycles": ep_cycles,
             "avg_cycles_per_step": ep_cycles / len(ep_history) if ep_history else 0,
@@ -246,7 +249,8 @@ def run_cosim(args):
     print("=" * 78)
 
     results_data = {
-        "status": "PASS",
+        "integration_status": "PASS (RTL == Python integer reference, 0 LSB, all steps)",
+        "navigation_status": "NOT EVALUATED HERE (see per-episode navigation_outcome; a step-limited run is not a navigation result)",
         "total_steps": total_steps,
         "total_episodes": args.episodes,
         "wall_clock_time_sec": t_total,
@@ -263,7 +267,10 @@ def run_cosim(args):
         print(f"Results written to: {args.output}")
 
     assert max_discrepancy_lsb == 0, f"Discrepancy detected: {max_discrepancy_lsb} LSB"
-    print("\nALL CO-SIMULATION CHECKS PASSED SUCCESSFULLY!\n")
+    print("\nINTEGRATION PASS: SoC output bit-exact vs Python reference (0 LSB). This is NOT a navigation-success claim.")
+    for e in all_episodes:
+        print(f"Navigation outcome, episode {e['episode']}: {e['navigation_outcome']} after {e['steps']} steps")
+    print()
     return 0
 
 def main():

@@ -1,0 +1,130 @@
+make: Entering directory '/workspace/sim'
+--- Building and Running NNA Accelerator Testbench ---
+iverilog -I/workspace/rtl -o /workspace/sim/tb_nna_top.vvp \
+	/workspace/rtl/nna/nna_mac4.v \
+	/workspace/rtl/nna/nna_regs.v \
+	/workspace/rtl/nna/nna_core.v \
+	/workspace/rtl/nna/nna_top.v \
+	/workspace/sim/tb_nna_top.v
+vvp /workspace/sim/tb_nna_top.vvp
+=== TB_NNA_TOP: Starting Test ===
+[Test 1] Writing configuration registers...
+CONFIG_DIM readback: 0x00080010 (expected 0x00080010)
+[Test 2] Loading Input activations into Scratchpad...
+[Test 3] Loading Biases...
+[Test 4] Loading Weight matrix (32 words)...
+[Test 5] Triggering NNA inference...
+Execution finished! STATUS=0x00000002
+Layer executed in 48 clock cycles
+Output Word 0 (Neurons 0-3): 0x0000507f
+SUCCESS: Neuron 0 (127/0x7F) and Neuron 1 (80/0x50) match exact expected values!
+=== TB_NNA_TOP: ALL TESTS PASSED SUCCESSFULLY! ===
+--- Building and Running Safety Filter Testbench ---
+iverilog -I/workspace/rtl -o /workspace/sim/tb_safety_filter.vvp \
+	/workspace/rtl/safety/safety_filter.v \
+	/workspace/sim/tb_safety_filter.v
+vvp /workspace/sim/tb_safety_filter.vvp
+VCD info: dumpfile tb_safety_filter.vcd opened for output.
+=== TB_SAFETY_FILTER: Starting Test ===
+[PASS] Reset sequence verified. Actuator armed.
+[Info] Watchdog countdown after refresh:         99
+[PASS] Heartbeat refresh maintains armed state.
+[Test] Allowing watchdog to time out...
+[Info] Safety status reg: 0x00000007
+[PASS] Watchdog expiration successfully disarmed actuator!
+[Test] Clearing trip condition via bus...
+[PASS] Trip successfully cleared.
+[Test] Asserting external physical E-Stop bumper...
+[PASS] Physical E-Stop latch and lockout verified!
+[PASS] Safety interlock re-armed successfully.
+=== TB_SAFETY_FILTER: ALL TESTS PASSED! ===
+--- Building and Running NNA RTL Corner-Case Verification Testbench ---
+iverilog -I/workspace/rtl -o /workspace/sim/tb_nna_corner_cases.vvp \
+	/workspace/rtl/nna/nna_mac4.v \
+	/workspace/rtl/nna/nna_regs.v \
+	/workspace/rtl/nna/nna_core.v \
+	/workspace/rtl/nna/nna_top.v \
+	/workspace/sim/tb_nna_corner_cases.v
+vvp /workspace/sim/tb_nna_corner_cases.vvp
+===============================================================
+=== STARTING RV_NNA RTL CORNER-CASE & BOUNDARY VERIFICATION ===
+===============================================================
+[TEST 1] Maximum Positive Saturation Clamping (+127)
+[TEST 1] Readback Word 0: 0x7f7f7f7f (Expected: 0x7f7f7f7f)
+[TEST 1 PASSED] Clamped correctly to +127 across all SIMD lanes.
+[TEST 2] Maximum Negative Saturation (Linear Clamping to -128)
+[TEST 2] Readback Word 0: 0x80808080 (Expected: 0x80808080)
+[TEST 2 PASSED] Clamped correctly to -128.
+[TEST 3] Negative Product with ReLU Activation (Clamp to 0)
+[TEST 3] Readback Word 0: 0x00000000 (Expected: 0x00000000)
+[TEST 3 PASSED] ReLU clamped negative values to 0.
+[TEST 4] Alternating Sign Dot-Product Cancellation
+[TEST 4] Readback Word 0: 0x00000000 (Expected: 0x00000000)
+[TEST 4 PASSED] Signed dot products cancelled exactly to 0.
+[TEST 5] Extreme Bias Addition Override
+[TEST 5] Readback Word 0: 0x00000032 (Expected byte 0: 0x32)
+[TEST 5 PASSED] Bias addition correctly offset negative sum to +50.
+[TEST 6] Requantization Shift = 0 Scaling
+[TEST 6] Readback Word 0: 0x0000004b (Expected byte 0: 0x4B)
+[TEST 6 PASSED] Shift=0 correctly multiplied acc by 3 without shift.
+[TEST 7] Invalid Dimension Error Trapping (K=5)
+[TEST 7] Status Readback: 0x00000006
+[TEST 7 PASSED] Invalid dimension properly rejected with STATUS.ERROR=1.
+[TEST 8] Hardware Auto-Copy Buffer Chaining (Layer Execution with Auto-Copy)
+[TEST 8] Output Buffer Word 0: 0x281e140a (Expected: 0x281e140a)
+[TEST 8] Auto-Copied Input Buffer Word 0: 0x281e140a (Expected: 0x281e140a)
+[TEST 8 PASSED] Hardware auto-copy buffer chaining verified successfully.
+===============================================================
+=== ALL 8 RV_NNA RTL CORNER-CASE TESTS PASSED SUCCESSFULLY! ===
+===============================================================
+--- Building and Running Adversarial Safety Filter Testbench ---
+iverilog -I/workspace/rtl -o /workspace/sim/tb_safety_adversarial.vvp \
+	/workspace/rtl/safety/safety_filter.v \
+	/workspace/sim/tb_safety_adversarial.v
+vvp /workspace/sim/tb_safety_adversarial.vvp
+======================================================================
+=== STARTING ADVERSARIAL HARDWARE SAFETY FILTER STRESS TESTS       ===
+======================================================================
+[ADVERSARIAL TEST 1] Corrupted Heartbeat Key Fault Injection...
+[TEST 1 PASSED] Corrupted heartbeat keys properly rejected; watchdog expired.
+[ADVERSARIAL TEST 2] Simultaneous Heartbeat Write vs E-Stop Collision...
+[TEST 2 PASSED] E-Stop unconditionally overrode concurrent heartbeat write.
+[ADVERSARIAL TEST 3] Clearing Trip While Physical E-Stop Remains Held...
+[TEST 3 PASSED] Physical E-Stop lock strictly enforces hardware interlock.
+[ADVERSARIAL TEST 4] Firmware Module-Disable Attempt (Fail-Safe Verification)...
+[TEST 4 PASSED] Disabling filter properly engages fail-safe disarm.
+[ADVERSARIAL TEST 5] Single-Cycle Countdown Boundary...
+[TEST 5 PASSED] Single-cycle countdown expired cleanly.
+[ADVERSARIAL TEST 6] Asynchronous Reset Glitch Immunity...
+[TEST 6 PASSED] Asynchronous reset safety interlock verified.
+======================================================================
+=== ALL 6 ADVERSARIAL HARDWARE SAFETY FILTER TESTS PASSED!         ===
+======================================================================
+--- Assembling Bare-metal Firmware ---
+python3 /workspace/sw/firmware/assemble.py /workspace/sw/firmware/soc_firmware.s /workspace/sw/firmware/firmware.hex
+Assembled 73 instructions (292 bytes) successfully.
+Using pre-built hex files (riscv-none-elf-as not found in PATH)
+--- Building and Running Full SoC Integration Testbench ---
+iverilog -I/workspace/rtl -DROM_INIT_FILE=\"/workspace/sw/firmware/firmware.hex\" \
+	-o /workspace/sim/tb_soc_top.vvp /workspace/rtl/nna/nna_mac4.v /workspace/rtl/nna/nna_regs.v /workspace/rtl/nna/nna_core.v /workspace/rtl/nna/nna_top.v /workspace/rtl/safety/safety_filter.v /workspace/rtl/periph/soc_uart.v /workspace/rtl/periph/soc_timer.v /workspace/rtl/periph/soc_pwm.v /workspace/rtl/bus/soc_interconnect.v /workspace/rtl/mem/soc_rom.v /workspace/rtl/mem/soc_ram.v /workspace/rtl/cpu/picorv32.v /workspace/rtl/soc_top.v /workspace/sim/tb_soc_top.v
+vvp /workspace/sim/tb_soc_top.vvp
+WARNING: /workspace/rtl/mem/soc_rom.v:35: $readmemh(/workspace/sw/firmware/firmware.hex): Not enough words in the file for the requested range [0:2047].
+
+=======================================================
+   STARTING RISC-V ROBOT SOC FULL SYSTEM SIMULATION    
+   ROM: /workspace/sw/firmware/firmware.hex
+=======================================================
+[TB] System reset deasserted at time 100000 ns
+SoC
+K
+=======================================================
+ SUCCESS: Robot SoC End-to-End System Test PASSED!    
+ Cycles taken: 523
+ NNA Inference Result in RAM[0x100]: 0x000000ea
+ NNA Execution Latency in RAM[0x104]: 3 cycles
+ PWM Left Command:  42 (0x002a)
+ PWM Right Command: 0 (0x0000)
+ Safety Interlock Disarmed: 0 (0 = Armed/Operational)
+=======================================================
+
+make: Leaving directory '/workspace/sim'

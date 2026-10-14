@@ -1,0 +1,99 @@
+make: Entering directory '/workspace/sim'
+--- [1/4] Running INT8 Reference Model Test ---
+python3 /workspace/sw/model/reference_model.py
+Generated Test Case:
+K=16, M=8
+Input X: [63, -72, -94, 89, -30, -38, -43, -65, 88, -74, 73, 89, 39, -78, 51, 8]
+Expected Output Y: [127, 0, 0, 0, 0, 0, 127, 127]
+Input words (hex): ['0x59a2b83f', '0xbfd5dae2', '0x5949b658', '0x833b227']
+Output words (hex): ['0x7f', '0x7f7f0000']
+Reference model verified.
+--- [2/4] Running Independent Vector Verification ---
+python3 /workspace/sim/verify_independent_vectors.py
+================================================================================
+Independent Integer Oracle Verification (25 Authentic Vectors)
+Standalone arithmetic: ZERO imports from sw/model/reference_model.py
+Layer 1 (16->8, ReLU): Mult=153, Shift=15
+Layer 2 ( 8->2, Clip): Mult=1333, Shift=15
+================================================================================
+[PASS] Vector    0: Layer 1 H1 exact match, Layer 2 Action [v=  28, w=  47] exact match (0 LSB error)
+[PASS] Vector  166: Layer 1 H1 exact match, Layer 2 Action [v=  48, w=  38] exact match (0 LSB error)
+[PASS] Vector  332: Layer 1 H1 exact match, Layer 2 Action [v=  24, w= -21] exact match (0 LSB error)
+[PASS] Vector  498: Layer 1 H1 exact match, Layer 2 Action [v=  65, w=   6] exact match (0 LSB error)
+[PASS] Vector  664: Layer 1 H1 exact match, Layer 2 Action [v=  43, w=  39] exact match (0 LSB error)
+[PASS] Vector  830: Layer 1 H1 exact match, Layer 2 Action [v=  40, w=  57] exact match (0 LSB error)
+[PASS] Vector  996: Layer 1 H1 exact match, Layer 2 Action [v=  65, w=   9] exact match (0 LSB error)
+[PASS] Vector 1162: Layer 1 H1 exact match, Layer 2 Action [v=  29, w=  94] exact match (0 LSB error)
+[PASS] Vector 1328: Layer 1 H1 exact match, Layer 2 Action [v=  58, w= -22] exact match (0 LSB error)
+[PASS] Vector 1494: Layer 1 H1 exact match, Layer 2 Action [v=  25, w= -58] exact match (0 LSB error)
+[PASS] Vector 1660: Layer 1 H1 exact match, Layer 2 Action [v=  68, w= -19] exact match (0 LSB error)
+[PASS] Vector 1826: Layer 1 H1 exact match, Layer 2 Action [v=  32, w=-108] exact match (0 LSB error)
+[PASS] Vector 1992: Layer 1 H1 exact match, Layer 2 Action [v=  44, w=  -3] exact match (0 LSB error)
+[PASS] Vector 2158: Layer 1 H1 exact match, Layer 2 Action [v=  57, w=  35] exact match (0 LSB error)
+[PASS] Vector 2324: Layer 1 H1 exact match, Layer 2 Action [v=  54, w=  40] exact match (0 LSB error)
+[PASS] Vector 2490: Layer 1 H1 exact match, Layer 2 Action [v=  57, w= -13] exact match (0 LSB error)
+[PASS] Vector 2656: Layer 1 H1 exact match, Layer 2 Action [v=  21, w=  66] exact match (0 LSB error)
+[PASS] Vector 2822: Layer 1 H1 exact match, Layer 2 Action [v=  45, w= -41] exact match (0 LSB error)
+[PASS] Vector 2988: Layer 1 H1 exact match, Layer 2 Action [v=  51, w=  -9] exact match (0 LSB error)
+[PASS] Vector 3154: Layer 1 H1 exact match, Layer 2 Action [v=  51, w= -20] exact match (0 LSB error)
+[PASS] Vector 3320: Layer 1 H1 exact match, Layer 2 Action [v=  75, w=   4] exact match (0 LSB error)
+[PASS] Vector 3486: Layer 1 H1 exact match, Layer 2 Action [v=  29, w= -79] exact match (0 LSB error)
+[PASS] Vector 3652: Layer 1 H1 exact match, Layer 2 Action [v=  41, w= -32] exact match (0 LSB error)
+[PASS] Vector 3818: Layer 1 H1 exact match, Layer 2 Action [v=  41, w=  20] exact match (0 LSB error)
+[PASS] Vector 3985: Layer 1 H1 exact match, Layer 2 Action [v=  28, w=  36] exact match (0 LSB error)
+--------------------------------------------------------------------------------
+SUCCESS: All 25 vectors independently verified bit-exact (0 LSB error).
+--- [3/4] Running Python Deterministic Safety Layer Test ---
+python3 /workspace/sw/safety/safety_layer.py
+--- Test 1: Out-of-bounds speed command ---
+Raw: [10.0, 20.0] -> Safe: [0.020, 0.080] (Reason: NORMAL)
+
+--- Test 2: Acceleration limiting across consecutive steps ---
+Step 1: v_safe=0.020 m/s
+Step 2: v_safe=0.040 m/s
+Step 3: v_safe=0.060 m/s
+Step 4: v_safe=0.080 m/s
+Step 5: v_safe=0.100 m/s
+
+--- Test 3: Emergency obstacle brake ---
+Obstacle at 0.10m -> v_safe=0.000 m/s (Reason: CRITICAL_OBSTACLE_BRAKE)
+
+--- Test 4: Inference watchdog failure ---
+Inference Timeout -> v_safe=0.000 m/s (Reason: FAILSAFE_WATCHDOG_TIMEOUT)
+
+All deterministic safety checks successfully verified!
+python3 /workspace/sw/test/test_safety_fault_injection.py
+PASS policy_nan_v: finite and within envelope
+PASS policy_nan_v: internal state finite
+PASS policy_nan_w: finite and within envelope
+PASS policy_nan_w: internal state finite
+PASS policy_inf_v: finite and within envelope
+PASS policy_inf_v: internal state finite
+PASS policy_-inf_w: finite and within envelope
+PASS policy_-inf_w: internal state finite
+PASS policy_nan_both: finite and within envelope
+PASS policy_nan_both: internal state finite
+PASS dist_nan: forward motion blocked
+PASS dist_neg: forward motion blocked
+PASS dist_-inf: forward motion blocked
+PASS stuck_policy: margin never violated approaching wall
+PASS watchdog: zero output
+PASS fuzz 20000 faulty inputs: always finite and in envelope
+16/16 passed
+python3 /workspace/sw/test/test_safety_c_mirror.py
+C mirror safety tests passed
+python3 /workspace/sw/test/test_safety_c_compiled.py
+compiled C safety driver matches integer mirror on 20000 vectors
+python3 /workspace/sw/test/test_rl_export.py
+PASS: firmware nav_weights.inc == rl_seed1_policy.json (weights, biases, scales, act; 500 random outputs)
+PASS: deliberately mismatched weight detected
+PASS: deliberately mismatched bias detected
+PASS: deliberately mismatched scale detected
+--- [4/4] Running End-to-End Navigation Policy Simulation ---
+PYTHONPATH=/workspace/sw/model:/workspace/sw/safety python3 /workspace/sw/model/robot_policy_e2e.py
+=== Running End-to-End Robot Policy & Safety Filter Simulation ===
+Scenario 1 (Open space): Raw cmd (v=-0.504, w=2.000) -> Safe cmd (v=-0.020, w=0.080) [Reason=NORMAL]
+Scenario 2 (Close obstacle 0.10m): Raw cmd (v=-0.504) -> Safe cmd (v=-0.040) [Reason=CRITICAL_OBSTACLE_BRAKE]
+Scenario 3 (Watchdog timeout): Raw cmd (v=-0.504) -> Safe cmd (v=0.000, w=0.000) [Reason=FAILSAFE_WATCHDOG_TIMEOUT]
+=== All End-to-End Simulation Scenarios Passed Successfully! ===
+make: Leaving directory '/workspace/sim'
