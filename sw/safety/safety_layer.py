@@ -45,6 +45,10 @@ class DeterministicSafetyFilter:
         Takes raw unverified neural outputs and sensor distances,
         returns guaranteed safe motor commands.
         """
+        # Rule -1 (M5): invalid distance reading (NaN/inf/negative) => treat as contact
+        if not math.isfinite(min_obstacle_dist) or min_obstacle_dist < 0.0:
+            min_obstacle_dist = 0.0
+
         # Rule 0: Watchdog check
         if not inference_ok:
             self.v_prev = 0.0
@@ -84,6 +88,10 @@ class DeterministicSafetyFilter:
         else:
             v_safe = v_c2
             w_safe = w_c2
+
+        # Rule 4 (M5): never step past the margin within one control period
+        if v_safe > 0.0:
+            v_safe = min(v_safe, max(0.0, min_obstacle_dist - self.d_margin) / self.dt)
 
         # Update historical state
         self.v_prev = v_safe

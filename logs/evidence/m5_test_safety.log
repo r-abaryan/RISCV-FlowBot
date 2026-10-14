@@ -1,0 +1,21 @@
+make: Entering directory '/workspace/sim'
+--- Building and Running Safety Filter Testbench ---
+iverilog -I/workspace/rtl -o /workspace/sim/tb_safety_filter.vvp \
+	/workspace/rtl/safety/safety_filter.v \
+	/workspace/sim/tb_safety_filter.v
+vvp /workspace/sim/tb_safety_filter.vvp
+VCD info: dumpfile tb_safety_filter.vcd opened for output.
+=== TB_SAFETY_FILTER: Starting Test ===
+[PASS] Reset sequence verified. Actuator armed.
+[Info] Watchdog countdown after refresh:         99
+[PASS] Heartbeat refresh maintains armed state.
+[Test] Allowing watchdog to time out...
+[Info] Safety status reg: 0x00000007
+[PASS] Watchdog expiration successfully disarmed actuator!
+[Test] Clearing trip condition via bus...
+[PASS] Trip successfully cleared.
+[Test] Asserting external physical E-Stop bumper...
+[PASS] Physical E-Stop latch and lockout verified!
+[PASS] Safety interlock re-armed successfully.
+=== TB_SAFETY_FILTER: ALL TESTS PASSED! ===
+make: Leaving directory '/workspace/sim'

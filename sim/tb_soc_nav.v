@@ -162,51 +162,60 @@ module tb_soc_nav;
             $display(" [ASSERT 1 PASS] NNA accelerator executed exactly 6 layer evaluations (3 x 2-layer passes)");
 
             // 2. Assert NNA policy inference outputs across the 3 navigation cycles
-            // Cycle 1: Open corridor (forward velocity v=0x21, zero angular velocity w=0x00)
-            if (nna_v_history[0] != 8'h21 || nna_w_history[0] != 8'h00) begin
-                $fatal(1, "[TB FATAL] Cycle 1 raw policy output mismatch: got v=0x%02x, w=0x%02x (expected v=0x21, w=0x00)",
+            // Cycle 1: Open corridor (goldens from sw/model/reference_model.py with RL seed 1 weights)
+            if (nna_v_history[0] != 8'h17 || nna_w_history[0] != 8'h07) begin
+                $fatal(1, "[TB FATAL] Cycle 1 raw policy output mismatch: got v=0x%02x, w=0x%02x (expected v=0x17, w=0x07, RL seed 1 weights)",
                        nna_v_history[0], nna_w_history[0]);
             end
-            $display(" [ASSERT 2 PASS] Cycle 1 raw policy output verified: v=0x21 (+33), w=0x00 (0)");
+            $display(" [ASSERT 2 PASS] Cycle 1 raw policy output verified: v=0x17 (+23), w=0x07 (+7)");
 
-            // Cycle 2: Obstacle on left (v=0xFD (-3), max right steering w=0x7F (+127))
-            if (nna_v_history[1] != 8'hfd || nna_w_history[1] != 8'h7f) begin
-                $fatal(1, "[TB FATAL] Cycle 2 raw policy output mismatch: got v=0x%02x, w=0x%02x (expected v=0xFD, w=0x7F)",
+            // Cycle 2: Obstacle on left
+            if (nna_v_history[1] != 8'he8 || nna_w_history[1] != 8'h7f) begin
+                $fatal(1, "[TB FATAL] Cycle 2 raw policy output mismatch: got v=0x%02x, w=0x%02x (expected v=0xE8, w=0x7F, RL seed 1 weights)",
                        nna_v_history[1], nna_w_history[1]);
             end
-            $display(" [ASSERT 3 PASS] Cycle 2 raw policy output verified: v=0xFD (-3), w=0x7F (+127)");
+            $display(" [ASSERT 3 PASS] Cycle 2 raw policy output verified: v=0xE8 (-24), w=0x7F (+127)");
 
             // Cycle 3: Front obstacle
-            if (nna_v_history[2] != 8'h1a || nna_w_history[2] != 8'h27) begin
-                $fatal(1, "[TB FATAL] Cycle 3 raw policy output mismatch: got v=0x%02x, w=0x%02x (expected v=0x1A, w=0x27)",
+            if (nna_v_history[2] != 8'h17 || nna_w_history[2] != 8'h41) begin
+                $fatal(1, "[TB FATAL] Cycle 3 raw policy output mismatch: got v=0x%02x, w=0x%02x (expected v=0x17, w=0x41, RL seed 1 weights)",
                        nna_v_history[2], nna_w_history[2]);
             end
-            $display(" [ASSERT 4 PASS] Cycle 3 raw policy output verified: v=0x1A (+26), w=0x27 (+39)");
+            $display(" [ASSERT 4 PASS] Cycle 3 raw policy output verified: v=0x17 (+23), w=0x41 (+65)");
 
             // 3. Assert Motor PWM commands and Safety Interlock
             // History index 0 is initial zero PWM. Index 1, 2, 3 correspond to Cycle 1, 2, 3.
-            // Cycle 1 PWM: balanced forward drive (Left == Right == 0x0274)
-            if (pwm_left_history[1] != 16'h0274 || pwm_right_history[1] != 16'h0274) begin
-                $fatal(1, "[TB FATAL] Cycle 1 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x0274, 0x0274)",
+            // Cycle 1 PWM: forward drive with small right bias (w=+7)
+            if (pwm_left_history[1] != 16'h0232 || pwm_right_history[1] != 16'h0269) begin
+                $fatal(1, "[TB FATAL] Cycle 1 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x0232, 0x0269)",
                        pwm_left_history[1], pwm_right_history[1]);
             end
             $display(" [ASSERT 5 PASS] Cycle 1 PWM balanced forward drive: L=0x%04x, R=0x%04x",
                      pwm_left_history[1], pwm_right_history[1]);
 
             // Cycle 2 PWM: differential steer right (Right > Left, Left clamped to 0)
-            if (pwm_left_history[2] != 16'h0000 || pwm_right_history[2] != 16'h03d8) begin
-                $fatal(1, "[TB FATAL] Cycle 2 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x0000, 0x03d8)",
+            if (pwm_left_history[2] != 16'h0000 || pwm_right_history[2] != 16'h0386) begin
+                $fatal(1, "[TB FATAL] Cycle 2 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x0000, 0x0386)",
                        pwm_left_history[2], pwm_right_history[2]);
             end
             $display(" [ASSERT 6 PASS] Cycle 2 PWM sharp right turn: L=0x0000, R=0x%04x", pwm_right_history[2]);
 
             // Cycle 3 Safety Override: front wall obstacle triggered firmware clamp
             // v_cmd clamped to 0, differential turn in place
-            if (pwm_left_history[3] != 16'h015b || pwm_right_history[3] != 16'h028c) begin
-                $fatal(1, "[TB FATAL] Cycle 3 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x015b, 0x028c)",
+            if (pwm_left_history[3] != 16'h00f6 || pwm_right_history[3] != 16'h02f1) begin
+                $fatal(1, "[TB FATAL] Cycle 3 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x00f6, 0x02f1)",
                        pwm_left_history[3], pwm_right_history[3]);
             end
-            $display(" [ASSERT 7 PASS] Cycle 3 Safety Override verified: v_cmd clamped to 0, PWM L=0x015b, R=0x028c");
+            // Stronger check: with raw v=+23, w=+65 and NO clamp the duties would be
+            // L=((23-65+128)*1000)>>8=0x014f, R=((23+65+128)*1000)>>8=0x034b. Require
+            // the clamp took effect (v=0 => L+R = 2*128*1000/256 within rounding of 1000).
+            if (pwm_left_history[3] == 16'h014f || pwm_right_history[3] == 16'h034b) begin
+                $fatal(1, "[TB FATAL] Cycle 3 PWM equals the UNCLAMPED value: safety override did not act");
+            end
+            if (pwm_left_history[3] + pwm_right_history[3] < 16'd998 || pwm_left_history[3] + pwm_right_history[3] > 16'd1000) begin
+                $fatal(1, "[TB FATAL] Cycle 3 L+R=%0d, not consistent with v_safe=0", pwm_left_history[3] + pwm_right_history[3]);
+            end
+            $display(" [ASSERT 7 PASS] Cycle 3 Safety Override verified: v_cmd clamped to 0, PWM L=0x00f6, R=0x02f1");
 
             // Final safety state assertions
             if (actuator_disarm != 1'b0) begin

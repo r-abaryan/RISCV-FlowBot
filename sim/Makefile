@@ -54,6 +54,10 @@ test_py:
 	$(PYTHON) $(ROOT_DIR)/sim/verify_independent_vectors.py
 	@echo "--- [3/4] Running Python Deterministic Safety Layer Test ---"
 	$(PYTHON) $(ROOT_DIR)/sw/safety/safety_layer.py
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_safety_fault_injection.py
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_safety_c_mirror.py
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_safety_c_compiled.py
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_rl_export.py
 	@echo "--- [4/4] Running End-to-End Navigation Policy Simulation ---"
 	PYTHONPATH=$(ROOT_DIR)/sw/model:$(ROOT_DIR)/sw/safety $(PYTHON) $(ROOT_DIR)/sw/model/robot_policy_e2e.py
 

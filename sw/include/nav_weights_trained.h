@@ -6,76 +6,76 @@
 
 #define L1_K 16
 #define L1_M 8
-#define L1_SCALE_MULT 153U
+#define L1_SCALE_MULT 246U
 #define L1_SCALE_SHIFT 15U
 #define L1_ACT 1U
 
 #define L2_K 8
 #define L2_M 2
-#define L2_SCALE_MULT 1333U
+#define L2_SCALE_MULT 1030U
 #define L2_SCALE_SHIFT 15U
 #define L2_ACT 2U
 
 /* Layer 1 Packed Weights (32-bit words, 4 INT8 per word) */
 static const uint32_t l1_weights_packed[32] = {
-    0x12120403U, /* [0:3] */
-    0xd5ec0307U, /* [4:7] */
-    0xe9eefcf5U, /* [8:11] */
-    0xadd6cd05U, /* [12:15] */
-    0x030706fcU, /* [16:19] */
-    0xfd81fcfdU, /* [20:23] */
-    0x14ef28f4U, /* [24:27] */
-    0x24f902f2U, /* [28:31] */
-    0xfefd8afcU, /* [32:35] */
-    0xfdff0505U, /* [36:39] */
-    0x01fd1e11U, /* [40:43] */
-    0xf6f6efdfU, /* [44:47] */
-    0x0e0b0205U, /* [48:51] */
-    0x08faff01U, /* [52:55] */
-    0x72ec2aedU, /* [56:59] */
-    0xd4f3e1f5U, /* [60:63] */
-    0x0b0f0501U, /* [64:67] */
-    0x300203feU, /* [68:71] */
-    0x5fd102ffU, /* [72:75] */
-    0x88f90502U, /* [76:79] */
-    0x050806faU, /* [80:83] */
-    0x08fd07ffU, /* [84:87] */
-    0x0324acf4U, /* [88:91] */
-    0x60ed1af0U, /* [92:95] */
-    0xf804fcfbU, /* [96:99] */
-    0xfd0590fcU, /* [100:103] */
-    0xfe25d2fcU, /* [104:107] */
-    0xfbe9f806U, /* [108:111] */
-    0x191e0afaU, /* [112:115] */
-    0x00ecff03U, /* [116:119] */
-    0x16ca2212U, /* [120:123] */
-    0xa4d5db0dU, /* [124:127] */
+    0x040e0806U, /* [0:3] */
+    0xddeefc04U, /* [4:7] */
+    0xeaf4f9f4U, /* [8:11] */
+    0xb6ddcdf9U, /* [12:15] */
+    0x0b020400U, /* [16:19] */
+    0xf981fdfdU, /* [20:23] */
+    0x13f52beaU, /* [24:27] */
+    0x23fa05f2U, /* [28:31] */
+    0xfdfe92f6U, /* [32:35] */
+    0xfa080600U, /* [36:39] */
+    0xfd00130eU, /* [40:43] */
+    0xe8fbf3e3U, /* [44:47] */
+    0x0b07fc02U, /* [48:51] */
+    0x0bf3fd07U, /* [52:55] */
+    0x70f229ebU, /* [56:59] */
+    0xdff3e405U, /* [60:63] */
+    0x08110401U, /* [64:67] */
+    0x340001f7U, /* [68:71] */
+    0x4cd30003U, /* [72:75] */
+    0x8dfb0701U, /* [76:79] */
+    0x09010bf1U, /* [80:83] */
+    0x0605fefcU, /* [84:87] */
+    0x0320b2f0U, /* [88:91] */
+    0x55f80df3U, /* [92:95] */
+    0xff0203f1U, /* [96:99] */
+    0x03039606U, /* [100:103] */
+    0xfd21cefdU, /* [104:107] */
+    0xfcee000eU, /* [108:111] */
+    0x1e0d0e03U, /* [112:115] */
+    0xf5ea0609U, /* [116:119] */
+    0x15d21d10U, /* [120:123] */
+    0xa7dce104U, /* [124:127] */
 };
 
 /* Layer 1 Biases (INT32) */
 static const int32_t l1_biases[8] = {
-    7097,
-    -9605,
-    -8231,
-    -372,
-    -2346,
-    2962,
-    -8003,
-    -4063,
+    5859,
+    -8245,
+    -6403,
+    488,
+    -2089,
+    2341,
+    -7012,
+    -4250,
 };
 
 /* Layer 2 Packed Weights (32-bit words, 4 INT8 per word) */
 static const uint32_t l2_weights_packed[4] = {
-    0x1bd8e9ffU, /* [0:3] */
-    0xf3cd02fcU, /* [4:7] */
-    0x1d7f9fd1U, /* [8:11] */
-    0x2d8727cbU, /* [12:15] */
+    0x1fe1fa05U, /* [0:3] */
+    0xfbd2f8faU, /* [4:7] */
+    0x1c7fb3d4U, /* [8:11] */
+    0x258427c5U, /* [12:15] */
 };
 
 /* Layer 2 Biases (INT32) */
 static const int32_t l2_biases[2] = {
-    644,
-    963,
+    816,
+    1653,
 };
 
 #endif /* NAV_WEIGHTS_TRAINED_H */
