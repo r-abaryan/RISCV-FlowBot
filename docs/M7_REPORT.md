@@ -39,6 +39,12 @@ Not run: synthesis, RL training, test_nna/test_safety/test_rtl targets (not indi
    must restrict (otherwise the scenario is flagged as vacuous). Results: all 3 PASS (logs/m7/boundary_1..2.log).
    Negative controls (firmware mutated, same scenario must FAIL): no proximity cap, no stop zone,
    invalid-as-far, no slew limit: all 4 detected (logs/m7/boundary_1,3,4.log).
+   **Scope of this test (what it does and does not establish):** it checks SoC-executed PWM traces
+   (the PWM writes come from the real firmware running on the soc_top RTL). By design the harness kills the
+   simulator (`vvp`) as soon as the initial PWM write plus 3 tick writes are logged, to save simulation time.
+   It therefore does NOT run tb_soc_nav to completion and does NOT establish a clean final exit,
+   end-of-test pass banner or assertion summary from tb_soc_nav. Clean tb_soc_nav completion is covered only by the
+   separate test_nav target, run on the unmodified firmware.
    Runtime: ~50 s per item, run in separate invocations because of the 120 s tool-call limit; not part of the default regression.
 3. **Front-sensor mapping** (`test_front_sensor_mapping.py`): robot_env ray angles are
    -90,-60,-30,-10,10,30,60,90 deg. Firmware front sensors d2..d5 = obs[2..5] = -30..+30 deg: correct.
