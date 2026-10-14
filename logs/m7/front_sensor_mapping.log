@@ -1,0 +1,2 @@
+ray angles(deg)=[-90, -60, -30, -10, 10, 30, 60, 90]; front=obs[2..5]; max cm underestimate over all q=1.13; PASS
+exit 0

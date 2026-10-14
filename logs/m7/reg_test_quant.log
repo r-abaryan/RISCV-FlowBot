@@ -1,0 +1,12 @@
+--- Running INT8 Policy Quantization Loss & Fidelity Suite ---
+python3 /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/test/verify_quantization.py
+[Quantization Analysis] Collecting dataset across 50 episodes...
+
+--- INT8 Quantization Error Analysis (3986 authentic samples) ---
+Linear Velocity v:  MAE = 0.0060 | Max Err = 0.0309 | RMSE = 0.0076 | SNR = 33.54 dB | Corr = 0.9989
+Angular Velocity w: MAE = 0.0125 | Max Err = 0.1732 | RMSE = 0.0165 | SNR = 29.04 dB | Corr = 0.9996
+Overall Action MAE: 0.0093 (Criterion < 0.05: PASS)
+Overall Max Error:  0.1732
+
+Saved quantization analysis to /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/test/../policy/quantization_analysis.json
+Saved 25 authentic RTL test vectors to /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/test/../../sim/test_vectors_trained.json

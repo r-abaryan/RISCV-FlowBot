@@ -22,7 +22,7 @@ RTL_SRCS = \
 	$(ROOT_DIR)/rtl/cpu/picorv32.v \
 	$(ROOT_DIR)/rtl/soc_top.v
 
-.PHONY: all sim firmware test_py test_nna_corners test_nna test_safety test_soc test_nav test_nna_corners_sim test_safety_adv test_trained_nna test_quant test_cosim synth_check clean
+.PHONY: test_safety_hw all sim firmware test_py test_nna_corners test_nna test_safety test_soc test_nav test_nna_corners_sim test_safety_adv test_trained_nna test_quant test_cosim synth_check clean
 
 all: test_py test_nna_corners test_quant test_rtl test_trained_nna test_nav
 
@@ -96,6 +96,13 @@ test_nna_corners_sim:
 		$(ROOT_DIR)/sim/tb_nna_corner_cases.v
 	$(VVP) $(ROOT_DIR)/sim/tb_nna_corner_cases.vvp
 
+test_safety_hw:
+	@echo "--- Building and Running Safety HW Register Interface Testbench (M7A) ---"
+	$(IVERILOG) -g2012 -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_safety_hw_interface.vvp \
+		$(ROOT_DIR)/rtl/safety/safety_filter.v \
+		$(ROOT_DIR)/sim/tb_safety_hw_interface.v
+	$(VVP) $(ROOT_DIR)/sim/tb_safety_hw_interface.vvp
+
 test_safety_adv:
 	@echo "--- Building and Running Adversarial Safety Filter Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_safety_adversarial.vvp \
@@ -131,7 +138,7 @@ test_cosim: firmware
 		-o $(ROOT_DIR)/sim/tb_soc_cosim.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_cosim.v
 	$(PYTHON) $(ROOT_DIR)/sim/soc_closed_loop_cosim.py --steps 10 --episodes 1
 
-test_rtl: test_nna test_safety test_nna_corners_sim test_safety_adv test_soc
+test_rtl: test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc
 
 synth_check:
 	@echo "--- Running Yosys RTL Syntax & Elaboration Check ---"
@@ -139,3 +146,18 @@ synth_check:
 
 clean:
 	rm -f $(ROOT_DIR)/sim/*.vvp $(ROOT_DIR)/sim/*.vcd
+
+.PHONY: test_rom_layout test_wdt_negative
+test_rom_layout: firmware
+	python3 $(ROOT_DIR)/sw/test/test_rom_layout.py && python3 $(ROOT_DIR)/sw/test/test_rom_layout.py --selftest
+	python3 $(ROOT_DIR)/sw/test/test_nav_expected.py
+
+test_wdt_negative: firmware
+	sh $(ROOT_DIR)/sim/run_wdt_negative.sh
+
+# M7D: SoC-executed assembly safety boundary tests (slow: ~50 s per simulated item; run subsets via ARGS="scen:slew_open")
+test_nav_boundaries:
+	python3 ../sw/test/test_nav_boundaries.py $(ARGS)
+test_front_sensor_mapping:
+	python3 ../sw/test/test_front_sensor_mapping.py
+.PHONY: test_nav_boundaries test_front_sensor_mapping

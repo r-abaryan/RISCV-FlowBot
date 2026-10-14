@@ -1,0 +1,28 @@
+--- Assembling Bare-metal Firmware ---
+python3 /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/firmware/assemble.py /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/firmware/soc_firmware.s /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/firmware/firmware.hex
+Assembled 73 instructions (292 bytes) successfully.
+Generated 531 hex words.
+Generated 230 hex words.
+--- Building and Running Full SoC Integration Testbench ---
+iverilog -I/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl -DROM_INIT_FILE=\"/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/firmware/firmware.hex\" \
+	-o /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_soc_top.vvp /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/nna/nna_mac4.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/nna/nna_regs.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/nna/nna_core.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/nna/nna_top.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/safety/safety_filter.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/periph/soc_uart.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/periph/soc_timer.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/periph/soc_pwm.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/bus/soc_interconnect.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/mem/soc_rom.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/mem/soc_ram.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/cpu/picorv32.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/soc_top.v /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_soc_top.v
+vvp /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_soc_top.vvp
+WARNING: /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/mem/soc_rom.v:35: $readmemh(/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/firmware/firmware.hex): Not enough words in the file for the requested range [0:2047].
+
+=======================================================
+   STARTING RISC-V ROBOT SOC FULL SYSTEM SIMULATION    
+   ROM: /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/firmware/firmware.hex
+=======================================================
+[TB] System reset deasserted at time 100000 ns
+SoC
+K
+=======================================================
+ SUCCESS: Robot SoC End-to-End System Test PASSED!    
+ Cycles taken: 523
+ NNA Inference Result in RAM[0x100]: 0x000000ea
+ NNA Execution Latency in RAM[0x104]: 3 cycles
+ PWM Left Command:  42 (0x002a)
+ PWM Right Command: 0 (0x0000)
+ Safety Interlock Disarmed: 0 (0 = Armed/Operational)
+=======================================================
+

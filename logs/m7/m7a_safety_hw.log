@@ -1,0 +1,38 @@
+make: Entering directory '/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim'
+--- Building and Running Safety HW Register Interface Testbench (M7A) ---
+iverilog -g2012 -I/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl -o /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_safety_hw_interface.vvp \
+	/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/safety/safety_filter.v \
+	/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_safety_hw_interface.v
+vvp /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_safety_hw_interface.vvp
+[PASS] disarm during reset
+[PASS] armed after reset (default enable=1)
+[PASS] reset TIMEOUT = 2500000
+[PASS] reset CTRL enable bit
+[PASS] reset STATUS = enable only
+[PASS] TIMEOUT readback 50
+[PASS] countdown reloaded near timeout
+[PASS] armed under regular heartbeats
+[PASS] wrong keys / wrong offsets do not feed watchdog -> trip
+[PASS] STATUS tripped+wdt_expired+enable (0x7)
+[PASS] valid heartbeat does not clear latched trip
+[PASS] recovery via CTRL=3 re-arms
+[PASS] STATUS cleared after recovery
+[PASS] tripped again without heartbeat
+[PASS] CTRL=1 (no clear bit) does not recover
+[PASS] CTRL enable=0 disarms actuators
+[PASS] STATUS enable=0
+[PASS] re-enable restores arm
+[PASS] E-stop pin disarms combinationally
+[PASS] STATUS shows estop pin bit3
+[PASS] clear refused while E-stop pressed
+[PASS] E-stop latched after release
+[PASS] recovery after E-stop release
+[PASS] TIMEOUT=0 trips immediately (fail-safe)
+[PASS] trip latency bounded by timeout+margin
+[Info] trip after 41 cycles with TIMEOUT=40
+[PASS] async reset disarms
+[PASS] reset clears trip
+checks=27 errors=0
+=== TB_SAFETY_HW_INTERFACE: ALL PASSED ===
+make: Leaving directory '/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim'
+exit 0

@@ -1,0 +1,4 @@
+[PASS] proximity_cap: raw=[(20, 15), (20, 15), (20, 15)] pwm=[(476, 539), (449, 566), (449, 566)]
+[PASS] negative control no_proximity_cap (on proximity_cap): detected: tick0: pwm=(01f4,0232) expected=(01dc,021b) d=29 raw=(20,15)
+RESULT PASS
+exit 0

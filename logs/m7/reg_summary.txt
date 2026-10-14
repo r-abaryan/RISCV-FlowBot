@@ -1,0 +1,10 @@
+test_py exit 0
+test_nna_corners exit 0
+test_quant exit 0
+test_safety_adv exit 0
+test_safety_hw exit 0
+test_trained_nna exit 0
+test_nna_corners_sim exit 0
+test_nav exit 0
+test_soc exit 0
+test_cosim exit 0

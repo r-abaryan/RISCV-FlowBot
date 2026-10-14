@@ -1,0 +1,23 @@
+--- Building and Running Adversarial Safety Filter Testbench ---
+iverilog -I/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl -o /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_safety_adversarial.vvp \
+	/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/rtl/safety/safety_filter.v \
+	/workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_safety_adversarial.v
+vvp /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_safety_adversarial.vvp
+======================================================================
+=== STARTING ADVERSARIAL HARDWARE SAFETY FILTER STRESS TESTS       ===
+======================================================================
+[ADVERSARIAL TEST 1] Corrupted Heartbeat Key Fault Injection...
+[TEST 1 PASSED] Corrupted heartbeat keys properly rejected; watchdog expired.
+[ADVERSARIAL TEST 2] Simultaneous Heartbeat Write vs E-Stop Collision...
+[TEST 2 PASSED] E-Stop unconditionally overrode concurrent heartbeat write.
+[ADVERSARIAL TEST 3] Clearing Trip While Physical E-Stop Remains Held...
+[TEST 3 PASSED] Physical E-Stop lock strictly enforces hardware interlock.
+[ADVERSARIAL TEST 4] Firmware Module-Disable Attempt (Fail-Safe Verification)...
+[TEST 4 PASSED] Disabling filter properly engages fail-safe disarm.
+[ADVERSARIAL TEST 5] Single-Cycle Countdown Boundary...
+[TEST 5 PASSED] Single-cycle countdown expired cleanly.
+[ADVERSARIAL TEST 6] Asynchronous Reset Glitch Immunity...
+[TEST 6 PASSED] Asynchronous reset safety interlock verified.
+======================================================================
+=== ALL 6 ADVERSARIAL HARDWARE SAFETY FILTER TESTS PASSED!         ===
+======================================================================

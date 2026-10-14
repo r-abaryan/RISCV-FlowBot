@@ -1,0 +1,24 @@
+--- Assembling Bare-metal Firmware ---
+python3 /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/firmware/assemble.py /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/firmware/soc_firmware.s /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/firmware/firmware.hex
+Assembled 73 instructions (292 bytes) successfully.
+Generated 531 hex words.
+Generated 230 hex words.
+python3 /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/test/test_rom_layout.py && python3 /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/test/test_rom_layout.py --selftest
+OK   l1_weights@0x00000504 32 words match
+OK   l1_biases@0x00000584 8 words match
+OK   l2_weights@0x000005a4 4 words match
+OK   l2_biases@0x000005b4 2 words match
+OK   l1_weights@0x00000504 32 words match
+OK   l1_biases@0x00000584 8 words match
+OK   l2_weights@0x000005a4 4 words match
+OK   l2_biases@0x000005b4 2 words match
+FAIL l1_weights@0x504: 1 mismatching words, first idx [5]
+OK   l1_biases@0x00000584 8 words match
+OK   l2_weights@0x000005a4 4 words match
+OK   l2_biases@0x000005b4 2 words match
+NEGATIVE SELFTEST PASS: single-bit corruption detected
+python3 /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sw/test/test_nav_expected.py
+dist=357cm v,w=(8, 7) L=0x01f7 R=0x022e
+dist=73cm v,w=(0, 15) L=0x01b9 R=0x022e
+dist=11cm v,w=(0, 23) L=0x019a R=0x024d
+nav expected-PWM reference matches tb_soc_nav constants

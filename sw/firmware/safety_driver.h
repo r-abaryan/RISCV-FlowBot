@@ -21,21 +21,31 @@ typedef struct {
     uint8_t fault_count;
 } safety_state_t;
 
+// Order matters: set timeout, then clear any trip (also reloads countdown), then heartbeat.
 static inline void safety_hw_enable(uint32_t timeout_cycles) {
     SAFETY_REG_TIMEOUT = timeout_cycles;
-    SAFETY_REG_CTRL    = 1;
+    SAFETY_REG_CTRL    = SAFETY_CTRL_ENABLE | SAFETY_CTRL_CLEAR;
 }
 
 static inline void safety_hw_heartbeat(void) {
     SAFETY_REG_HEARTBEAT = SAFETY_HEARTBEAT_KEY;
 }
 
+// Returns nonzero if the HW trip latch is set (wdog expiry or latched E-Stop).
 static inline uint32_t safety_is_hardware_disarmed(void) {
-    return (SAFETY_REG_STATUS & SAFETY_DISARM_BIT);
+    return (SAFETY_REG_STATUS & (SAFETY_STATUS_TRIPPED | SAFETY_STATUS_ESTOP)) ||
+           !(SAFETY_REG_STATUS & SAFETY_STATUS_ENABLE);
 }
 
+// Software-requested disarm: clearing enable forces actuator_disarm=1 in RTL.
 static inline void safety_hw_force_disarm(void) {
-    SAFETY_REG_FORCE_DIS = 1;
+    SAFETY_REG_CTRL = 0;
+}
+
+// Supported recovery: only works if E-Stop pin released. Returns 1 if armed afterwards.
+static inline uint32_t safety_hw_recover(uint32_t timeout_cycles) {
+    safety_hw_enable(timeout_cycles);
+    return !safety_is_hardware_disarmed();
 }
 
 // Deterministic software safety filter checking AI policy outputs

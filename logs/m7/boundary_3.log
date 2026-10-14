@@ -1,0 +1,4 @@
+[PASS] negative control no_stop_zone (on invalid_sensor): detected: tick0: pwm=(01f4,0232) expected=(01d4,0213) d=0 raw=(20,17)
+[PASS] negative control invalid_as_far (on invalid_sensor): detected: tick0: pwm=(01f4,0232) expected=(01d4,0213) d=0 raw=(20,17)
+RESULT PASS
+exit 0
