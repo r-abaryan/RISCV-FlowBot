@@ -135,7 +135,7 @@ def run_cosim(args):
     print(f"Episodes: {args.episodes} | Steps per Episode: {args.steps} | Seed: {args.seed}")
     print("=" * 78)
 
-    weights_json = os.path.abspath(os.path.join(os.path.dirname(__file__), "../sw/policy/trained_policy_weights.json"))
+    weights_json = os.path.abspath(os.path.join(os.path.dirname(__file__), "../sw/policy/rl_seed1_policy.json"))
     ref_policy = ReferencePolicyINT8(weights_json)
     
     soc = SoCSubprocess(args.vvp)

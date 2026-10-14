@@ -1,0 +1,5 @@
+il nofilter S0 20000 N 25 succ 7 coll 16 timeout 2
+il nofilter S0 20025 N 25 succ 10 coll 14 timeout 1
+il filter S0 20000 N 25 succ 2 coll 0 timeout 23
+1 filter S0 20000 N 25 succ 2 coll 0 timeout 23
+1 nofilter S0 20000 N 25 succ 5 coll 20 timeout 0
