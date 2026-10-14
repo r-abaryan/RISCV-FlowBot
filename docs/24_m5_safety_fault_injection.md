@@ -36,3 +36,8 @@ Verification: sw/test/test_safety_c_mirror.py is an integer Python mirror, not c
 |---|---|---|
 | make -C sim test_py | 0 | logs/evidence/m5_test_py.log |
 | make -C sim test_safety | 0 | logs/evidence/m5_test_safety.log |
+
+## Which safety implementation each test exercises (clarification, cleanup pass)
+- Python safety filter (fault-injection tests, d4a1f02): fixes invalid obstacle distances (NaN / negative) and proximity-margin enforcement.
+- Host-compiled C driver (safety_driver.h via host gcc, test_safety_c_compiled.py) and its Python mirror: tests the C source on the host only.
+- Hand-written assembly firmware (robot_nav_firmware.s, the code run in the SoC tests tb_soc_nav / co-sim): has its own simpler front-distance check and was NOT changed. No test here shows it contains the fixes. The C driver tests do not prove the deployed firmware uses them.
