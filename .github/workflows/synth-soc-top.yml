@@ -1,48 +1,105 @@
-# Manual-only flat synth_ecp5 of soc_top (M8B). Counts only: no timing, no Fmax, no place-and-route, no board result.
-# Yosys is built from the pinned upstream commit; the job fails if `yosys -V` does not report that commit.
+# Manual-only flat synth_ecp5 of the firmware-initialised soc_top (M8B). Counts only: no timing, no Fmax,
+# no place-and-route, no board result. Yosys is built from a FIXED upstream commit (not user-overridable).
+# The pinned commit uses CMake (>=3.28), not the legacy Makefile; build follows its README / upstream CI.
 name: synth-soc-top
 on:
-  workflow_dispatch:
-    inputs:
-      yosys_commit:
-        description: "Yosys git commit to build (default: pinned c12172fb, 0.68+post)"
-        default: "c12172fb"
+  workflow_dispatch: {}
 permissions:
   contents: read
+env:
+  YOSYS_COMMIT: c12172fbae8af5e20f6fb52e3d4e92d56ed587b6
+  SYNTH_BUDGET_S: "5400"
 jobs:
   synth:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare output dir
+        run: mkdir -p synth_out && echo "started $(date -u +%FT%TZ)" > synth_out/status.txt
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang bison flex libreadline-dev gawk tcl-dev libffi-dev git pkg-config python3 zlib1g-dev
-      - name: Build pinned Yosys
+          set -euo pipefail
+          { sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+              build-essential clang cmake ninja-build bison flex libreadline-dev gawk tcl-dev libffi-dev \
+              git pkg-config python3 zlib1g-dev; } > synth_out/apt.log 2>&1 || { tail -40 synth_out/apt.log; echo "FAILED apt" >> synth_out/status.txt; exit 1; }
+          cmake --version | head -1 | tee -a synth_out/tool_versions.txt
+      - name: Build pinned Yosys (CMake)
         run: |
-          git clone https://github.com/YosysHQ/yosys.git "$RUNNER_TEMP/yosys"
+          set -euo pipefail
+          fail() { echo "FAILED $1" >> "$GITHUB_WORKSPACE/synth_out/status.txt"; tail -60 "$GITHUB_WORKSPACE/synth_out/yosys_build.log" || true; exit 1; }
+          git clone https://github.com/YosysHQ/yosys.git "$RUNNER_TEMP/yosys" > synth_out/yosys_clone.log 2>&1 || fail clone
           cd "$RUNNER_TEMP/yosys"
-          git checkout "${{ inputs.yosys_commit }}"
-          git submodule update --init --recursive
-          make -j"$(nproc)" > "$RUNNER_TEMP/yosys_build.log" 2>&1 || { tail -50 "$RUNNER_TEMP/yosys_build.log"; exit 1; }
-          sudo make install >> "$RUNNER_TEMP/yosys_build.log" 2>&1
-          mkdir -p "$GITHUB_WORKSPACE/synth_out"
-          { yosys -V; git rev-parse HEAD; } | tee "$GITHUB_WORKSPACE/synth_out/yosys_version.txt"
-          grep -q "${{ inputs.yosys_commit }}" "$GITHUB_WORKSPACE/synth_out/yosys_version.txt" || { echo "version mismatch"; exit 1; }
+          git checkout --detach "$YOSYS_COMMIT" >> "$GITHUB_WORKSPACE/synth_out/yosys_clone.log" 2>&1 || fail checkout
+          RESOLVED=$(git rev-parse HEAD)
+          echo "$RESOLVED" > "$GITHUB_WORKSPACE/synth_out/yosys_source_sha.txt"
+          [ "$RESOLVED" = "$YOSYS_COMMIT" ] || { echo "source checkout $RESOLVED != pinned $YOSYS_COMMIT" >&2; fail source_sha; }
+          git submodule update --init --recursive --depth 1 >> "$GITHUB_WORKSPACE/synth_out/yosys_clone.log" 2>&1 || fail submodules
+          # Slang frontend is not needed for read_verilog/synth_ecp5 and is expensive to build.
+          { CC=clang CXX=clang++ cmake -G Ninja -B build . -DCMAKE_BUILD_TYPE=Release \
+              -DYOSYS_USE_BUNDLED_LIBS=ON -DYOSYS_WITHOUT_SLANG=ON \
+              -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/yosys-install" \
+            && cmake --build build -j"$(nproc)" \
+            && cmake --install build; } > "$GITHUB_WORKSPACE/synth_out/yosys_build.log" 2>&1 || fail build
+          echo "$RUNNER_TEMP/yosys-install/bin" >> "$GITHUB_PATH"
+      - name: Verify Yosys provenance
+        run: |
+          set -euo pipefail
+          Y="$RUNNER_TEMP/yosys-install/bin/yosys"
+          [ -x "$Y" ] || { echo "FAILED no built yosys at $Y" | tee -a synth_out/status.txt; exit 1; }
+          "$Y" -V | tee synth_out/yosys_version.txt
+          sha256sum "$Y" > synth_out/yosys_binary_sha256.txt
+          # Binary must report the pinned full SHA, not '-dirty', and match the source checkout resolved earlier.
+          grep -q "git sha1 ${YOSYS_COMMIT}[,)]" synth_out/yosys_version.txt || { echo "FAILED: binary version != pinned commit" | tee -a synth_out/status.txt; exit 1; }
+          if grep -q dirty synth_out/yosys_version.txt; then echo "FAILED: dirty build" | tee -a synth_out/status.txt; exit 1; fi
+          [ "$(cat synth_out/yosys_source_sha.txt)" = "$YOSYS_COMMIT" ]
+          { echo "binary_path=$Y"; echo "source_sha=$(cat synth_out/yosys_source_sha.txt)"; } >> synth_out/status.txt
+      - name: Sanity-check firmware hex and ROM-init prerequisites
+        run: |
+          set -euo pipefail
+          test -s sw/firmware/robot_nav.hex
+          wc -l sw/firmware/robot_nav.hex | tee synth_out/hex_lines.txt
+          # pre-mapping check: the memory INIT of u_rom must equal the firmware words (also proves chparam reaches soc_rom)
+          SRC="rtl/nna/*.v rtl/safety/*.v rtl/periph/*.v rtl/mem/*.v rtl/bus/*.v rtl/cpu/picorv32.v rtl/soc_top.v"
+          "$RUNNER_TEMP/yosys-install/bin/yosys" -q -l synth_out/rom_premap.log -p "read_verilog -DSYNTHESIS -Irtl $SRC; chparam -set ROM_INIT_FILE \"sw/firmware/robot_nav.hex\" soc_top; hierarchy -check -top soc_top; proc; memory_collect; write_rtlil synth_out/top_premap.il"
+          python3 scripts/check_rom_init.py synth_out/top_premap.il sw/firmware/robot_nav.hex | tee synth_out/rom_premap_check.txt
       - name: Flat synth_ecp5 soc_top (no runtime claim; keep all logs)
         run: |
-          set +e
-          BUDGET=6000 RUN_TAG=soc_top scripts/synth_staged.sh soc_top "" \
-            rtl/nna/*.v rtl/safety/*.v rtl/periph/*.v rtl/mem/*.v rtl/bus/*.v rtl/cpu/picorv32.v rtl/soc_top.v \
-            2>&1 | tee synth_out/run.log
-          echo "exit ${PIPESTATUS[0]}" | tee synth_out/exit.txt
-        shell: bash
+          set -uo pipefail
+          SRC="rtl/nna/*.v rtl/safety/*.v rtl/periph/*.v rtl/mem/*.v rtl/bus/*.v rtl/cpu/picorv32.v rtl/soc_top.v"
+          # no pipe to tee for the exit status: redirect, then record the ORIGINAL code
+          BUDGET="$SYNTH_BUDGET_S" RUN_TAG=soc_top sh scripts/synth_staged.sh soc_top \
+            'chparam -set ROM_INIT_FILE "sw/firmware/robot_nav.hex" soc_top;' $SRC > synth_out/run.log 2>&1
+          rc=$?
+          echo "$rc" > synth_out/exit.txt
+          echo "synth_staged exit code: $rc"
+          tail -20 synth_out/run.log
+          [ "$rc" -eq 0 ] || { echo "FAILED synth_staged rc=$rc (0=COMPLETED, 2=INCOMPLETE/budget, 1=FAILED)" | tee -a synth_out/status.txt; exit 1; }
+          [ "$(cat build/syn/soc_top/status)" = "COMPLETED" ] || { echo "FAILED status file not COMPLETED" | tee -a synth_out/status.txt; exit 1; }
+          [ -s build/syn/soc_top/stat.txt ] && grep -Eq '^ +[0-9]+ +cells$' build/syn/soc_top/stat.txt && grep -Eq ' LUT4$' build/syn/soc_top/stat.txt \
+            || { echo "FAILED final statistics missing/empty" | tee -a synth_out/status.txt; exit 1; }
+          echo "SYNTH_COMPLETED" >> synth_out/status.txt
+      - name: Verify ROM initialisation survived mapping
+        run: |
+          set -euo pipefail
+          Y="$RUNNER_TEMP/yosys-install/bin/yosys"
+          # reference: soc_rom alone, same parameter, same synth_ecp5 flow
+          BUDGET=600 RUN_TAG=rom_ref sh scripts/synth_staged.sh soc_rom 'chparam -set INIT_FILE "sw/firmware/robot_nav.hex" soc_rom;' rtl/mem/soc_rom.v > synth_out/rom_ref_run.log 2>&1
+          python3 scripts/check_rom_mapped.py build/syn/rom_ref/netlist.il build/syn/soc_top/netlist.il "" | tee synth_out/rom_mapped_check.txt
+          echo "ROM_INIT_VERIFIED" >> synth_out/status.txt
       - name: Collect
         if: always()
-        run: cp -r build/syn/soc_top synth_out/ 2>/dev/null || true; cp "$RUNNER_TEMP"/yosys_build.log synth_out/ 2>/dev/null || true
+        run: |
+          cp -r build/syn/soc_top synth_out/soc_top_syn 2>/dev/null || true
+          cp -r build/syn/rom_ref synth_out/rom_ref_syn 2>/dev/null || true
+          grep -E "DP16KD|LUT4|TRELLIS_FF|MULT18X18D|LUT|EBR" build/syn/soc_top/stat.txt > synth_out/stat_summary.txt 2>/dev/null || true
+          rm -f synth_out/*.il; ls -la synth_out
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: soc_top-flat-synth
           path: synth_out/
+          if-no-files-found: warn
