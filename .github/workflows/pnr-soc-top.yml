@@ -1,0 +1,85 @@
+# Manual-only nextpnr-ecp5 place-and-route FEASIBILITY of ulx3s_top (wrapper + flat soc_top) on LFE5U-85F CABGA381 (M8C).
+# Device LFE5U-85F-6BG381C, 25 MHz board clock from fpga/ulx3s/ulx3s_85f.lpf, 3 seeds. No bitstream, no hardware.
+# Reports are uploaded even if timing fails. Results only count if the stages below complete.
+name: pnr-soc-top
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+env:
+  OSS_CAD_URL: https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-10-14/oss-cad-suite-linux-x64-20261014.tgz
+  OSS_CAD_SHA256: a6ccc6b96b2d985336a1061c78b2fd2bdd73e0f68690da17db88e00457881a11
+jobs:
+  synth:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned OSS CAD Suite
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          curl -sL --retry 3 -o oss.tgz "$OSS_CAD_URL"
+          echo "$OSS_CAD_SHA256  oss.tgz" | sha256sum -c - | tee out/oss_sha_check.txt
+          tar xzf oss.tgz
+          . oss-cad-suite/environment
+          { yosys -V; nextpnr-ecp5 --version; } 2>&1 | tee out/tool_versions.txt
+      - name: Synthesize (synth_ecp5) and write JSON
+        run: |
+          set -uo pipefail
+          . oss-cad-suite/environment
+          SRC="rtl/nna/*.v rtl/safety/*.v rtl/periph/*.v rtl/mem/*.v rtl/bus/*.v rtl/cpu/picorv32.v rtl/soc_top.v"
+          yosys -l out/synth.log -p "read_verilog -DSYNTHESIS -Irtl fpga/ulx3s/ulx3s_top.v $SRC; hierarchy -check -top ulx3s_top; synth_ecp5 -top ulx3s_top -noabc9; tee -o out/stat.txt stat; write_rtlil out/netlist.il; write_json out/soc_top.json" > out/yosys_stdout.txt 2>&1
+          echo $? > out/yosys_exit.txt
+          [ "$(cat out/yosys_exit.txt)" = 0 ] || { tail -30 out/yosys_stdout.txt; exit 1; }
+          python3 scripts/check_rom_mapped.py sw/firmware/robot_nav.hex out/netlist.il:u_soc.u_rom. | tee out/rom_mapped_check.txt
+          grep -E "LUT4|TRELLIS_FF|DP16KD|MULT18X18D|CCU2C|TRELLIS_DPR16X4" out/stat.txt | tee out/stat_summary.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soc_top-json
+          path: out/
+  pnr:
+    needs: synth
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [1, 2, 3]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: soc_top-json
+          path: in
+      - name: Install pinned OSS CAD Suite
+        run: |
+          set -euo pipefail
+          curl -sL --retry 3 -o oss.tgz "$OSS_CAD_URL"
+          echo "$OSS_CAD_SHA256  oss.tgz" | sha256sum -c -
+          tar xzf oss.tgz
+      - name: nextpnr-ecp5 (LFE5U-85F, CABGA381, speed 6, ULX3S LPF, 25 MHz)
+        run: |
+          set -uo pipefail
+          . oss-cad-suite/environment
+          mkdir -p res
+          nextpnr-ecp5 --version > res/nextpnr_version.txt 2>&1
+          # --timing-allow-fail: keep going and write reports even if 25 MHz is missed.
+          nextpnr-ecp5 --85k --package CABGA381 --speed 6 --json in/soc_top.json \
+            --lpf fpga/ulx3s/ulx3s_85f.lpf --freq 25 --seed ${{ matrix.seed }} \
+            --timing-allow-fail --report res/report.json --log res/nextpnr.log > res/stdout.txt 2>&1
+          echo $? > res/exit.txt
+          echo "nextpnr exit: $(cat res/exit.txt)"
+          grep -E "Device utilisation|TRELLIS_FF|LUT4|DP16KD|MULT18X18D|Max frequency|ERROR|WARNING.*constrain" res/nextpnr.log | tail -40 | tee res/summary.txt
+          [ "$(cat res/exit.txt)" = 0 ] || exit 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pnr-seed${{ matrix.seed }}
+          path: res/
