@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Integer mirror of safety_filter_command() in sw/firmware/safety_driver.h.
-NOT compiled C (no C compiler in sandbox); keep in sync by hand."""
+Hand-written mirror; test_safety_c_compiled.py checks it against the real compiled header."""
 V=64;W=64;SL=8;STOP=25
 def f(last,rv,rw,d):
     lv,lw=last
@@ -26,4 +26,5 @@ def main():
         # one tick at 0.02s: 1 LSB=1/128*... m/s, distance travelled stays above margin
         assert st[0]<=0 or st[0]*0.0078125*0.02*100 <= d-STOP
     print("C mirror safety tests passed")
-main()
+if __name__ == '__main__':
+    main()
