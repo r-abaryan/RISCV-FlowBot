@@ -1,0 +1,8 @@
+Generated 530 hex words.
+[TB] System reset deasserted at time 100000 ns
+[TB ASSERT] PWM Duty Cycle Written #1: Left=0x0000 (0), Right=0x0000 (0) at time 3450000 ns
+
+=== RISC-V Mobile Robot NavigFATAL: /workspace/github-1414414369-e1629b42-257d-4977-8288-9d53c462db8e/sim/tb_soc_nav.v:114: [TB FATAL] Safety watchdog tripped unexpectedly at time 41790000 ns! Disarm=1
+       Time: 41790000  Scope: tb_soc_nav
+NEGATIVE TEST PASS (rc=1, trip detected)
+exit 0

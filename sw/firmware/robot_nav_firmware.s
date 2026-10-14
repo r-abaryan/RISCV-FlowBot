@@ -24,13 +24,20 @@ _start:
     /* ------------------------------------------------------------------------
      * 1. Initialize Hardware Safety Interlock
      * ------------------------------------------------------------------------ */
+    /* Offsets per rtl/safety/safety_filter.v (M7A): 0x00 CTRL, 0x04 HEARTBEAT,
+     * 0x08 STATUS (RO), 0x0C TIMEOUT. Sequence: timeout, enable|clear, heartbeat. */
     li   t0, 0x50000600       /* ADDR_SAFETY_BASE */
-    li   t1, 500000           /* Watchdog limit (500k cycles) */
-    sw   t1, 0x04(t0)         /* SAFETY_REG_WD_LIMIT */
-    li   t1, 0x5AFEC0DE       /* SAFETY_KEY_PET */
-    sw   t1, 0x08(t0)         /* Pet watchdog */
-    li   t1, 0x5AFEC1EA       /* SAFETY_KEY_CLEAR */
-    sw   t1, 0x10(t0)         /* Clear any previous disarm */
+    li   t1, 500000           /* Watchdog limit (500k cycles = 10 ms @ 50 MHz) */
+    sw   t1, 0x0C(t0)         /* SAFETY_TIMEOUT */
+    li   t1, 3                /* enable | clear trip */
+    sw   t1, 0x00(t0)         /* SAFETY_CTRL */
+    li   t1, 0x5AFEC0DE       /* heartbeat key */
+    sw   t1, 0x04(t0)         /* SAFETY_HEARTBEAT */
+
+    /* Software safety-filter state (last_v, last_w) lives in RAM, zeroed at boot */
+    li   t0, 0x20003F00
+    sw   zero, 0(t0)
+    sw   zero, 4(t0)
 
     /* ------------------------------------------------------------------------
      * 2. Initialize Dual PWM Motor Controller
@@ -90,7 +97,7 @@ _start:
 
 halt_loop:
     /* Pet watchdog in idle loop */
-    li   t0, 0x50000608
+    li   t0, 0x50000604
     li   t1, 0x5AFEC0DE
     sw   t1, 0(t0)
     j    halt_loop
@@ -240,31 +247,84 @@ wait_l2:
     sra  s3, s3, 24           /* s3 = w_raw (-128..127) */
 
     /* ------------------------------------------------------------------------
-     * STEP C: Deterministic Software Safety Layer
-     * Inspect front distance sensors (d3, d4).
-     * If both indicate critical close distance (< 0), override v = 0!
-     * d3 is byte 3 of sensor word 0.
-     * d4 is byte 0 of sensor word 1.
+     * STEP C: Deterministic software safety filter (mirror of safety_filter_command()
+     * in safety_driver.h and sw/test/test_safety_c_mirror.py). In: s2=v_raw, s3=w_raw.
+     * Out: s2=v_safe, s3=w_safe. State last_v/last_w at 0x20003F00/04.
+     * Constants: MAX_V=MAX_W=64, SLEW=8, STOP=25cm.
+     * Distance: min over FRONT sensors d2..d5 (bytes), INT8 q -> cm = (q+127)*403>>8
+     * (hits = 2*(q/127+1) m; 403/256 ~= 200/127). q=-128 (invalid) -> negative -> 0 (contact).
      * ------------------------------------------------------------------------ */
-    lw   t2, 0(s0)            /* sensor word 0 */
-    sra  t2, t2, 24           /* t2 = d3 (signed INT8) */
-
-    lw   t3, 4(s0)            /* sensor word 1 */
-    sll  t3, t3, 24
-    sra  t3, t3, 24           /* t3 = d4 (signed INT8) */
-
-    /* Check if d3 < 0 AND d4 < 0 */
-    bgez t2, safety_pass
-    bgez t3, safety_pass
-
-    /* SAFETY TRIP: Emergency obstacle right in front! */
-    la   a0, msg_trip
-    jal  ra, uart_puts
-    li   s2, 0                /* Clamp forward velocity to 0! */
+    lw   t2, 0(s0)
+    lw   t3, 4(s0)
+    sll  t4, t2, 8
+    sra  t4, t4, 24           /* d2 */
+    sra  t5, t2, 24           /* d3 */
+    blt  t4, t5, 1f
+    mv   t4, t5               /* t4 = min(d2,d3) */
+1:  sll  t5, t3, 24
+    sra  t5, t5, 24           /* d4 */
+    blt  t4, t5, 2f
+    mv   t4, t5
+2:  sll  t5, t3, 16
+    sra  t5, t5, 24           /* d5 */
+    blt  t4, t5, 3f
+    mv   t4, t5               /* t4 = min q over front sensors */
+3:  addi t4, t4, 127
+    li   t5, 403
+    mul  t4, t4, t5
+    srai t4, t4, 8            /* t4 = min_distance_cm */
+    bgez t4, 4f
+    li   t4, 0                /* invalid / negative -> contact */
+4:
+    /* kinematic clamp +-64 */
+    li   t5, 64
+    ble  s2, t5, 5f
+    mv   s2, t5
+5:  neg  t6, t5
+    bge  s2, t6, 6f
+    mv   s2, t6
+6:  ble  s3, t5, 7f
+    mv   s3, t5
+7:  bge  s3, t6, 8f
+    mv   s3, t6
+8:
+    /* slew limit (+-8 per tick) vs last state */
+    li   t0, 0x20003F00
+    lw   t1, 0(t0)            /* last_v */
+    lw   t2, 4(t0)            /* last_w */
+    sub  t3, s2, t1
+    li   t5, 8
+    ble  t3, t5, 9f
+    add  s2, t1, t5
+9:  li   t5, -8
+    bge  t3, t5, 10f
+    add  s2, t1, t5
+10: sub  t3, s3, t2
+    li   t5, 8
+    ble  t3, t5, 11f
+    add  s3, t2, t5
+11: li   t5, -8
+    bge  t3, t5, 12f
+    add  s3, t2, t5
+12:
+    /* proximity override after slew; only forward motion is limited */
+    blez s2, 15f
+    li   t5, 25
+    bgt  t4, t5, 13f
+    li   s2, 0                /* within stop distance: no forward motion */
+    j    15f
+13: sub  t5, t4, t5
+    li   t6, 5
+    mul  t5, t5, t6
+    srai t5, t5, 3            /* cap = (d-25)*5>>3 */
+    ble  s2, t5, 15f
+    mv   s2, t5
+15: sw   s2, 0(t0)            /* last_v = v_safe */
+    sw   s3, 4(t0)            /* last_w = w_safe */
 
 safety_pass:
-    /* Pet hardware safety watchdog */
-    li   t0, 0x50000608
+    /* Pet hardware safety watchdog (HEARTBEAT register, key) */
+    li   t0, 0x50000604
     li   t1, 0x5AFEC0DE
     sw   t1, 0(t0)
 

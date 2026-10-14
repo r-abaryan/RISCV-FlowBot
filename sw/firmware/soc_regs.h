@@ -45,14 +45,19 @@
 // ----------------------------------------------------------------------------
 // Deterministic Hardware Safety Filter Registers (0x5000_0600)
 // ----------------------------------------------------------------------------
-#define SAFETY_REG_CTRL      REG32(SAFETY_BASE + 0x000)
-#define SAFETY_REG_TIMEOUT   REG32(SAFETY_BASE + 0x004)
-#define SAFETY_REG_HEARTBEAT REG32(SAFETY_BASE + 0x008)
-#define SAFETY_REG_STATUS    REG32(SAFETY_BASE + 0x00C)
-#define SAFETY_REG_FORCE_DIS REG32(SAFETY_BASE + 0x010)
+// Offsets verified against rtl/safety/safety_filter.v (M7A).
+#define SAFETY_REG_CTRL      REG32(SAFETY_BASE + 0x000)  // bit0 enable (reset=1), bit1 W1 clear trip
+#define SAFETY_REG_HEARTBEAT REG32(SAFETY_BASE + 0x004)  // write: key reloads wdog; read: countdown
+#define SAFETY_REG_STATUS    REG32(SAFETY_BASE + 0x008)  // RO: b0 enable,b1 tripped,b2 wdt_expired,b3 estop pin
+#define SAFETY_REG_TIMEOUT   REG32(SAFETY_BASE + 0x00C)  // watchdog reload value (cycles)
 
 #define SAFETY_HEARTBEAT_KEY 0x5AFEC0DE
-#define SAFETY_DISARM_BIT    (1 << 0)
+#define SAFETY_CTRL_ENABLE   (1u << 0)
+#define SAFETY_CTRL_CLEAR    (1u << 1)
+#define SAFETY_STATUS_ENABLE (1u << 0)
+#define SAFETY_STATUS_TRIPPED (1u << 1)
+#define SAFETY_STATUS_WDT    (1u << 2)
+#define SAFETY_STATUS_ESTOP  (1u << 3)
 
 // ----------------------------------------------------------------------------
 // Timer Registers (0x5000_0000)

@@ -185,25 +185,28 @@ module tb_soc_nav;
 
             // 3. Assert Motor PWM commands and Safety Interlock
             // History index 0 is initial zero PWM. Index 1, 2, 3 correspond to Cycle 1, 2, 3.
+            // M7B: expected values include the firmware safety filter (clamp 64, slew 8/tick,
+            // proximity). Cycle1: v 23->8 (slew), w=7. Cycle2: v -24->0 (slew from 8), w 127->64->15.
+            // Cycle3: wall at ~11 cm -> v=0, w 65->64->23. Reference: sw/test/test_nav_expected.py
             // Cycle 1 PWM: forward drive with small right bias (w=+7)
-            if (pwm_left_history[1] != 16'h0232 || pwm_right_history[1] != 16'h0269) begin
-                $fatal(1, "[TB FATAL] Cycle 1 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x0232, 0x0269)",
+            if (pwm_left_history[1] != 16'h01f7 || pwm_right_history[1] != 16'h022e) begin
+                $fatal(1, "[TB FATAL] Cycle 1 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x01f7, 0x022e)",
                        pwm_left_history[1], pwm_right_history[1]);
             end
             $display(" [ASSERT 5 PASS] Cycle 1 PWM balanced forward drive: L=0x%04x, R=0x%04x",
                      pwm_left_history[1], pwm_right_history[1]);
 
-            // Cycle 2 PWM: differential steer right (Right > Left, Left clamped to 0)
-            if (pwm_left_history[2] != 16'h0000 || pwm_right_history[2] != 16'h0386) begin
-                $fatal(1, "[TB FATAL] Cycle 2 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x0000, 0x0386)",
+            // Cycle 2 PWM: differential steer right (Right > Left, slew-limited)
+            if (pwm_left_history[2] != 16'h01b9 || pwm_right_history[2] != 16'h022e) begin
+                $fatal(1, "[TB FATAL] Cycle 2 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x01b9, 0x022e)",
                        pwm_left_history[2], pwm_right_history[2]);
             end
-            $display(" [ASSERT 6 PASS] Cycle 2 PWM sharp right turn: L=0x0000, R=0x%04x", pwm_right_history[2]);
+            $display(" [ASSERT 6 PASS] Cycle 2 PWM slew-limited right turn: L=0x01b9, R=0x%04x", pwm_right_history[2]);
 
             // Cycle 3 Safety Override: front wall obstacle triggered firmware clamp
             // v_cmd clamped to 0, differential turn in place
-            if (pwm_left_history[3] != 16'h00f6 || pwm_right_history[3] != 16'h02f1) begin
-                $fatal(1, "[TB FATAL] Cycle 3 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x00f6, 0x02f1)",
+            if (pwm_left_history[3] != 16'h019a || pwm_right_history[3] != 16'h024d) begin
+                $fatal(1, "[TB FATAL] Cycle 3 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x019a, 0x024d)",
                        pwm_left_history[3], pwm_right_history[3]);
             end
             // Stronger check: with raw v=+23, w=+65 and NO clamp the duties would be
@@ -215,7 +218,7 @@ module tb_soc_nav;
             if (pwm_left_history[3] + pwm_right_history[3] < 16'd998 || pwm_left_history[3] + pwm_right_history[3] > 16'd1000) begin
                 $fatal(1, "[TB FATAL] Cycle 3 L+R=%0d, not consistent with v_safe=0", pwm_left_history[3] + pwm_right_history[3]);
             end
-            $display(" [ASSERT 7 PASS] Cycle 3 Safety Override verified: v_cmd clamped to 0, PWM L=0x00f6, R=0x02f1");
+            $display(" [ASSERT 7 PASS] Cycle 3 Safety Override verified: v_cmd clamped to 0, PWM L=0x019a, R=0x024d");
 
             // Final safety state assertions
             if (actuator_disarm != 1'b0) begin

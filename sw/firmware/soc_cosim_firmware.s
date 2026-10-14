@@ -39,13 +39,13 @@ _start:
     /* ------------------------------------------------------------------------
      * 1. Initialize Hardware Safety Interlock
      * ------------------------------------------------------------------------ */
-    li   t0, 0x50000600       /* ADDR_SAFETY_BASE */
-    li   t1, 500000           /* Watchdog limit (500k cycles) */
-    sw   t1, 0x04(t0)         /* SAFETY_REG_WD_LIMIT */
-    li   t1, 0x5AFEC0DE       /* SAFETY_KEY_PET */
-    sw   t1, 0x08(t0)         /* Pet watchdog */
-    li   t1, 0x5AFEC1EA       /* SAFETY_KEY_CLEAR */
-    sw   t1, 0x10(t0)         /* Clear any previous disarm */
+    li   t0, 0x50000600       /* ADDR_SAFETY_BASE; offsets per safety_filter.v (M7A) */
+    li   t1, 500000
+    sw   t1, 0x0C(t0)         /* TIMEOUT */
+    li   t1, 3
+    sw   t1, 0x00(t0)         /* CTRL = enable | clear */
+    li   t1, 0x5AFEC0DE
+    sw   t1, 0x04(t0)         /* HEARTBEAT */
 
     /* ------------------------------------------------------------------------
      * 2. Initialize Dual PWM Motor Controller
@@ -68,7 +68,7 @@ _start:
 
 cosim_step_loop:
     /* Pet hardware safety watchdog */
-    li   t0, 0x50000608
+    li   t0, 0x50000604
     li   t1, 0x5AFEC0DE
     sw   t1, 0(t0)
 
@@ -244,7 +244,7 @@ wait_l2:
 
 safety_pass:
     /* Pet hardware safety watchdog */
-    li   t0, 0x50000608
+    li   t0, 0x50000604
     li   t1, 0x5AFEC0DE
     sw   t1, 0(t0)
 
@@ -316,7 +316,7 @@ cosim_shutdown:
     sw   t1, 0(t0)
 
 halt_loop:
-    li   t0, 0x50000608
+    li   t0, 0x50000604
     li   t1, 0x5AFEC0DE
     sw   t1, 0(t0)
     j    halt_loop
