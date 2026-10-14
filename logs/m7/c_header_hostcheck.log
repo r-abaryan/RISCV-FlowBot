@@ -1,0 +1,3 @@
+soc_regs host rc=0
+safety_driver host rc=0
+nna_driver host rc=0

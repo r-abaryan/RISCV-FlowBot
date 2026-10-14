@@ -26,3 +26,31 @@ This checks the image, not that the CPU fetches the same bytes; the end-to-end t
 ## Regression (make, exit codes in logs/m7/reg_summary.txt)
 test_py, test_nna_corners, test_quant, test_safety_adv, test_safety_hw, test_trained_nna, test_nna_corners_sim, test_nav, test_soc, test_cosim: all exit 0. test_cosim: only 10 steps, ended step_limit_timeout, which is not a goal-reaching test.
 Not run: synthesis, RL training, test_nna/test_safety/test_rtl targets (not individually run).
+
+## M7D follow-up (review response)
+
+1. **cosim_results.json**: restored to the base (92979ba) version; removed from the PR diff.
+2. **SoC-executed boundary tests** (`sw/test/test_nav_boundaries.py`, `make -C sim test_nav_boundaries`).
+   Patches the three sensor frames in `robot_nav_firmware.s`, assembles, runs the full soc_top RTL
+   (tb_soc_nav), reads the real NNA raw outputs and PWM writes from the log, and compares the PWM
+   with the independent Python mirror (`test_safety_c_mirror.f`) fed those raw outputs.
+   Scenarios (3 ticks each): proximity cap (front sensor d3 at 30 cm range), invalid sensor (-128 -> contact),
+   slew limit (open corridor). Each also checks the raw policy output actually demanded something the filter
+   must restrict (otherwise the scenario is flagged as vacuous). Results: all 3 PASS (logs/m7/boundary_1..2.log).
+   Negative controls (firmware mutated, same scenario must FAIL): no proximity cap, no stop zone,
+   invalid-as-far, no slew limit: all 4 detected (logs/m7/boundary_1,3,4.log).
+   Runtime: ~50 s per item, run in separate invocations because of the 120 s tool-call limit; not part of the default regression.
+3. **Front-sensor mapping** (`test_front_sensor_mapping.py`): robot_env ray angles are
+   -90,-60,-30,-10,10,30,60,90 deg. Firmware front sensors d2..d5 = obs[2..5] = -30..+30 deg: correct.
+   The 403/256 cm scale was checked exhaustively over all q in -127..127 against the env encoding
+   (obs = q/127, hits = (obs+1)*2 m): firmware never over-estimates distance, max underestimate 1.13 cm.
+   Caveat: this checks the intended encoding in robot_env.py, not that the pipeline feeding the mailbox packs bytes in that order (not checked).
+4. **C header compile check**: `gcc -std=c99 -Wall -Wextra -Werror -fsyntax-only` on soc_regs.h,
+   safety_driver.h, nna_driver.h: pass (logs/m7/c_header_hostcheck.log), and test_safety_c_compiled
+   (host-compiled header vs mirror, 20000 vectors) passes. **This is host (x86/musl) compilation only. No RV32 C compiler is
+   available here, so RV32 target compilation of the headers is NOT verified.**
+5. **Re-runs** (logs in logs/m7/): test_safety_c_compiled, test_rom_layout, test_nav, test_front_sensor_mapping: exit 0.
+   The firmware .s was not changed in this follow-up, so other earlier M7 results stand.
+
+Still unverified: RV32 compilation of C headers; soc_cosim_firmware.s filter parity; closed-loop goal reaching;
+boundary tests cover 3 scenarios at 3 ticks (not fuzzed); the stop-zone (d<=25) branch is only exercised via the invalid sensor scenario.
