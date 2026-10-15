@@ -30,14 +30,17 @@ jobs:
       - name: Build pinned Yosys (CMake)
         run: |
           set -euo pipefail
-          fail() { echo "FAILED $1" >> "$GITHUB_WORKSPACE/synth_out/status.txt"; tail -60 "$GITHUB_WORKSPACE/synth_out/yosys_build.log" || true; exit 1; }
-          git clone https://github.com/YosysHQ/yosys.git "$RUNNER_TEMP/yosys" > synth_out/yosys_clone.log 2>&1 || fail clone
-          cd "$RUNNER_TEMP/yosys"
+          fail() { echo "FAILED $1" >> "$GITHUB_WORKSPACE/synth_out/status.txt"; for l in yosys_build.log yosys_clone.log; do [ -f "$GITHUB_WORKSPACE/synth_out/$l" ] && { echo "--- $l"; tail -60 "$GITHUB_WORKSPACE/synth_out/$l"; }; done; exit 1; }
+          # The pinned commit is a GitHub PR merge commit, not reachable from any branch,
+          # so a plain clone does not contain it. Fetch it directly by SHA.
+          mkdir -p "$RUNNER_TEMP/yosys" && cd "$RUNNER_TEMP/yosys"
+          { git init -q . && git remote add origin https://github.com/YosysHQ/yosys.git \
+            && git fetch --depth 1 origin "$YOSYS_COMMIT"; } > "$GITHUB_WORKSPACE/synth_out/yosys_clone.log" 2>&1 || fail clone
           git checkout --detach "$YOSYS_COMMIT" >> "$GITHUB_WORKSPACE/synth_out/yosys_clone.log" 2>&1 || fail checkout
           RESOLVED=$(git rev-parse HEAD)
           echo "$RESOLVED" > "$GITHUB_WORKSPACE/synth_out/yosys_source_sha.txt"
           [ "$RESOLVED" = "$YOSYS_COMMIT" ] || { echo "source checkout $RESOLVED != pinned $YOSYS_COMMIT" >&2; fail source_sha; }
-          git submodule update --init --recursive --depth 1 >> "$GITHUB_WORKSPACE/synth_out/yosys_clone.log" 2>&1 || fail submodules
+          git submodule update --init --recursive >> "$GITHUB_WORKSPACE/synth_out/yosys_clone.log" 2>&1 || fail submodules
           # Slang frontend is not needed for read_verilog/synth_ecp5 and is expensive to build.
           { CC=clang CXX=clang++ cmake -G Ninja -B build . -DCMAKE_BUILD_TYPE=Release \
               -DYOSYS_USE_BUNDLED_LIBS=ON -DYOSYS_WITHOUT_SLANG=ON \
@@ -53,7 +56,10 @@ jobs:
           "$Y" -V | tee synth_out/yosys_version.txt
           sha256sum "$Y" > synth_out/yosys_binary_sha256.txt
           # Binary must report the pinned full SHA, not '-dirty', and match the source checkout resolved earlier.
-          grep -q "git sha1 ${YOSYS_COMMIT}[,)]" synth_out/yosys_version.txt || { echo "FAILED: binary version != pinned commit" | tee -a synth_out/status.txt; exit 1; }
+          # 'yosys -V' prints an abbreviated sha, so require a >=7 char prefix of the pinned full SHA.
+          BIN_SHA="$(sed -n 's/.*git sha1 \([0-9a-f]*\).*/\1/p' synth_out/yosys_version.txt | head -1)"
+          echo "binary reports sha '$BIN_SHA'"
+          { [ "${#BIN_SHA}" -ge 7 ] && case "$YOSYS_COMMIT" in "$BIN_SHA"*) true;; *) false;; esac; } || { echo "FAILED: binary version '$BIN_SHA' != pinned commit prefix of $YOSYS_COMMIT" | tee -a synth_out/status.txt; exit 1; }
           if grep -q dirty synth_out/yosys_version.txt; then echo "FAILED: dirty build" | tee -a synth_out/status.txt; exit 1; fi
           [ "$(cat synth_out/yosys_source_sha.txt)" = "$YOSYS_COMMIT" ]
           { echo "binary_path=$Y"; echo "source_sha=$(cat synth_out/yosys_source_sha.txt)"; } >> synth_out/status.txt
@@ -85,10 +91,8 @@ jobs:
       - name: Verify ROM initialisation survived mapping
         run: |
           set -euo pipefail
-          Y="$RUNNER_TEMP/yosys-install/bin/yosys"
-          # reference: soc_rom alone, same parameter, same synth_ecp5 flow
-          BUDGET=600 RUN_TAG=rom_ref sh scripts/synth_staged.sh soc_rom 'chparam -set INIT_FILE "sw/firmware/robot_nav.hex" soc_rom;' rtl/mem/soc_rom.v > synth_out/rom_ref_run.log 2>&1
-          python3 scripts/check_rom_mapped.py build/syn/rom_ref/netlist.il build/syn/soc_top/netlist.il "" | tee synth_out/rom_mapped_check.txt
+          # decode mapped INITVALs of u_rom.rom_mem.* against the firmware hex (scripts/check_rom_mapped.py: hex first, then netlist:prefix)
+          python3 scripts/check_rom_mapped.py sw/firmware/robot_nav.hex build/syn/soc_top/netlist.il:u_rom. 2>&1 | tee synth_out/rom_mapped_check.txt
           echo "ROM_INIT_VERIFIED" >> synth_out/status.txt
       - name: Collect
         if: always()

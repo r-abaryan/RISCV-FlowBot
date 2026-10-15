@@ -67,6 +67,8 @@ The designed SoC architecture is tailored for reinforcement learning (RL) mobile
 
 ### Synthesis status (corrected 2026-10-13)
 - **UNVERIFIED and superseded:** the former figures of 2,686 LUT4, 2,130 FFs, 4 DSPs and about 38 MHz Fmax. No logs back them. Do not cite them.
+
+- **Update 2026-10-15:** Flat soc_top result (CI run 38706204639, Yosys 0.68+post pinned): 8,753 LUT4, 579 carry cells, 12 MULT18X18D; nextpnr ULX3S 85F: 12,183 of 83,640 logic cells, 2,682 FFs, 38 EBR, 12 MULT; Fmax 32.9-33.0 MHz after routing vs a 25 MHz constraint, 3 seeds (static timing estimate only, no bitstream, no hardware). See docs/28_m8c_pnr_results.md. The old 2,686 LUT4 / 4 DSP / 38 MHz figures are wrong and must not be cited.
 - **Measured, per module (Yosys 0.68+post, `synth_ecp5 -noabc9`, modules synthesized separately, no place and route):** the sum of the separate runs is **7,648 LUT4 and 8 MULT18X18D** (picorv32_wb with the *default* `picorv32.v` parameters, i.e. without the MUL/DIV options that `soc_top` enables). With the `soc_top` parameters, `picorv32_wb` alone is 2,727 LUT4 and 4 MULT18X18D, so the per-module sum becomes about 9,081 LUT4. **This is a sum of separate runs. It is NOT a verified integrated-SoC utilization.** Whole-SoC (`soc_top`) synthesis has not completed.
 - **Not measured at all:** Fmax (needs place and route with nextpnr), timing, power, and the real ROM/RAM mapping.
 - Details: `docs/18_yosys_environment_and_per_module_synthesis.md`, `docs/19_synthesis_handoff_and_status.md`, raw logs in `logs/`.

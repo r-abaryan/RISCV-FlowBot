@@ -1,6 +1,10 @@
 # RISC-V FlowBot: Measured FPGA Synthesis & Resource Utilization Report
 
+> **Update (M8c):** measured flat ULX3S PnR results are in docs/28_m8c_pnr_results.md.
+>
 > **SUPERSEDED / UNVERIFIED (corrected 2026-10-13).** The tables below (including the 2,686-LUT / 4-DSP totals and the per-module counts) were written in commit dffa1c2. No Yosys log, `.ys` script or netlist for them exists in the repository, so they could not be reproduced. A re-run with Yosys 0.68+post gave different numbers (e.g. `nna_top` 5,393 LUT4 and 8 MULT18X18D, versus the 88 / 1,002 LUT4 quoted below). Treat everything below as **unverified history**. Current evidence: `docs/18_yosys_environment_and_per_module_synthesis.md`, `docs/19_synthesis_handoff_and_status.md` and `logs/synth_per_module*/`.
+
+> **Final correction (2026-10-15):** Flat soc_top result (CI run 38706204639, Yosys 0.68+post pinned): 8,753 LUT4, 579 carry cells, 12 MULT18X18D; nextpnr ULX3S 85F: 12,183 of 83,640 logic cells, 2,682 FFs, 38 EBR, 12 MULT; Fmax 32.9-33.0 MHz after routing vs a 25 MHz constraint, 3 seeds (static timing estimate only, no bitstream, no hardware). See docs/28_m8c_pnr_results.md. The old 2,686 LUT4 / 4 DSP / 38 MHz figures are wrong and must not be cited.
 > The `ibex_wb_adapter` row refers to a module that is not in the current RTL tree.
 
 

@@ -164,6 +164,8 @@ make synth_check
 
 ### FPGA synthesis status (corrected 2026-10-13)
 - The earlier README figures (2,686 LUT4 total, 2,130 FFs, 4 DSPs, and a `syn/synth_ecp5.ys` script) are **UNVERIFIED and superseded**. That script never existed in the repository.
+
+- **Update 2026-10-15:** Flat soc_top result (CI run 38706204639, Yosys 0.68+post pinned): 8,753 LUT4, 579 carry cells, 12 MULT18X18D; nextpnr ULX3S 85F: 12,183 of 83,640 logic cells, 2,682 FFs, 38 EBR, 12 MULT; Fmax 32.9-33.0 MHz after routing vs a 25 MHz constraint, 3 seeds (static timing estimate only, no bitstream, no hardware). See docs/28_m8c_pnr_results.md. The old 2,686 LUT4 / 4 DSP / 38 MHz figures are wrong and must not be cited.
 - Measured with Yosys 0.68+post (`synth_ecp5 -noabc9`), **each module synthesized separately**: the sum is **7,648 LUT4 and 8 MULT18X18D** with default PicoRV32 parameters (about 9,081 LUT4 with the `soc_top` parameters). This is a sum of separate runs, **not** verified integrated SoC utilization. A whole-SoC synthesis run has not completed.
 - No Fmax, timing or power result exists. See `docs/19_synthesis_handoff_and_status.md`.
 

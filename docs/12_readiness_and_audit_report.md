@@ -2,6 +2,8 @@
 
 > **Correction (2026-10-13):** the `synth_check` row below ("82.3 s, 2,686 LUTs, 4 DSPs") is unverified and superseded. `make synth_check` only runs `read_verilog`, `hierarchy -check` and `check`. It does no ECP5 mapping and reports no cell counts. See `docs/19_synthesis_handoff_and_status.md`.
 
+> **Final correction (2026-10-15):** Flat soc_top result (CI run 38706204639, Yosys 0.68+post pinned): 8,753 LUT4, 579 carry cells, 12 MULT18X18D; nextpnr ULX3S 85F: 12,183 of 83,640 logic cells, 2,682 FFs, 38 EBR, 12 MULT; Fmax 32.9-33.0 MHz after routing vs a 25 MHz constraint, 3 seeds (static timing estimate only, no bitstream, no hardware). See docs/28_m8c_pnr_results.md. The old 2,686 LUT4 / 4 DSP / 38 MHz figures are wrong and must not be cited.
+
 
 **Status:** Completed  
 **Recommendation:** **CONDITIONAL GO for Phase 1 Execution**  
