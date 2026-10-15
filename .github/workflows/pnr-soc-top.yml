@@ -5,6 +5,10 @@
 name: pnr-soc-top
 on:
   workflow_dispatch: {}
+  # TEMPORARY: lets M8C run from the PR branch without merging (workflow_dispatch needs the file on the default branch). Remove before merge.
+  push:
+    branches: [flowbot/m8c-ulx3s-pnr-workflow]
+    paths: ['.github/workflows/pnr-soc-top.yml']
 permissions:
   contents: read
 env:
