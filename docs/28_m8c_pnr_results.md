@@ -31,4 +31,4 @@ The 2,686 LUT4 / 4 DSP claim in docs 11/12 is refuted: the flat count is about 8
 ## Caveats
 - Seeds ran with --timing-allow-fail; classification was done by scripts/pnr_classify.py.
 - Estimate only: not a bitstream, no hardware run, no power or IO timing verification.
-- Temporary push trigger on the workflow must be removed before PR 15 merges.
+- The temporary push trigger has already been removed (commit bad69f1); the workflow now has only workflow_dispatch.
