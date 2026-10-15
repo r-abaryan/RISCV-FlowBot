@@ -91,10 +91,8 @@ jobs:
       - name: Verify ROM initialisation survived mapping
         run: |
           set -euo pipefail
-          Y="$RUNNER_TEMP/yosys-install/bin/yosys"
-          # reference: soc_rom alone, same parameter, same synth_ecp5 flow
-          BUDGET=600 RUN_TAG=rom_ref sh scripts/synth_staged.sh soc_rom 'chparam -set INIT_FILE "sw/firmware/robot_nav.hex" soc_rom;' rtl/mem/soc_rom.v > synth_out/rom_ref_run.log 2>&1
-          python3 scripts/check_rom_mapped.py build/syn/rom_ref/netlist.il build/syn/soc_top/netlist.il "" | tee synth_out/rom_mapped_check.txt
+          # decode mapped INITVALs of u_rom.rom_mem.* against the firmware hex (scripts/check_rom_mapped.py: hex first, then netlist:prefix)
+          python3 scripts/check_rom_mapped.py sw/firmware/robot_nav.hex build/syn/soc_top/netlist.il:u_rom. 2>&1 | tee synth_out/rom_mapped_check.txt
           echo "ROM_INIT_VERIFIED" >> synth_out/status.txt
       - name: Collect
         if: always()
