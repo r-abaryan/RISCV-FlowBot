@@ -1,0 +1,7 @@
+NOTE: output ftdi_rxd is driven by constant 1
+NOTE: output led[3] is driven by constant 0
+NOTE: output led[4] is driven by constant 0
+NOTE: output led[5] is driven by constant 0
+NOTE: output led[6] is driven by constant 0
+NOTE: output led[7] is driven by constant 0
+ports=12 locates=12 status=OK

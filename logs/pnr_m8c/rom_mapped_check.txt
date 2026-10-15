@@ -1,0 +1,2 @@
+out/netlist.il (prefix 'u_soc.u_rom.'): OK (531 firmware words)
+ROM_MAPPED_CONTENT_MATCH

@@ -1,0 +1,15 @@
+git_sha=dac57fb1b46ef77cbbdf1113b3de8b581d0009de
+git_ref=refs/heads/flowbot/m8c-ulx3s-pnr-workflow
+run_id=38706204639 attempt=1
+runner_image=ubuntu24 20261004.327.1
+Linux runnervmmprz5 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+oss_cad_url=https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-10-14/oss-cad-suite-linux-x64-20261014.tgz
+oss_cad_sha256=a6ccc6b96b2d985336a1061c78b2fd2bdd73e0f68690da17db88e00457881a11
+device=LFE5U-85F-6BG381C speed 6 clock 25 MHz
+470b88606c7b04e59c48a699c92d899b7d4e87b5de7c20bf09a6637f91169533  fpga/ulx3s/ulx3s_85f.lpf
+0228fc90ad6ea29b260050f0187437259ace51b7ad2d69788d14e6d6bece1c31  fpga/ulx3s/ulx3s_top.v
+b5c9ae1e547be293c41c5f71111d69538b54d52a83bf419c06bf07e93ed976a3  rtl/soc_top.v
+1ebcf35108fa0b63cbdb1baae02f1ca13cc44d25fd800b514134789be19af3a8  sw/firmware/robot_nav.hex
+4ac51ec1f95bd09d2905afabe58f36ff1bd4c4df4e8c9344c6453302a981d90c  scripts/check_rom_mapped.py
+2fac3d3add7b48a380a50640745a91f9cf4f951fa8514578682dd8613b970272  scripts/check_lpf_ports.py
+f5e9754a439d338862b5c38800c344e8ad2d1608270cc0a269b04295176ca354  scripts/pnr_classify.py

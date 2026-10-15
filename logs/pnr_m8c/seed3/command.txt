@@ -1,0 +1,1 @@
+nextpnr-ecp5 --85k --package CABGA381 --speed 6 --json in/soc_top.json --lpf fpga/ulx3s/ulx3s_85f.lpf --freq 25 --seed 3 --timing-allow-fail --report res/report.json --log res/nextpnr.log

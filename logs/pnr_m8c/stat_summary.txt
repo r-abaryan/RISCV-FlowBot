@@ -1,0 +1,6 @@
+      579   CCU2C
+       38   DP16KD
+     8753   LUT4
+       12   MULT18X18D
+      352   TRELLIS_DPR16X4
+     2682   TRELLIS_FF
