@@ -22,7 +22,7 @@ RTL_SRCS = \
 	$(ROOT_DIR)/rtl/cpu/picorv32.v \
 	$(ROOT_DIR)/rtl/soc_top.v
 
-.PHONY: test_safety_hw all sim firmware test_py test_nna_corners test_nna test_safety test_soc test_nav test_nna_corners_sim test_safety_adv test_trained_nna test_quant test_cosim synth_check clean
+.PHONY: test_negative test_ulx3s_top test_uart test_safety_hw all sim firmware test_py test_nna_corners test_nna test_safety test_soc test_nav test_nna_corners_sim test_safety_adv test_trained_nna test_quant test_cosim synth_check clean
 
 all: test_py test_nna_corners test_quant test_rtl test_trained_nna test_nav
 
@@ -77,14 +77,14 @@ test_nna:
 		$(ROOT_DIR)/rtl/nna/nna_core.v \
 		$(ROOT_DIR)/rtl/nna/nna_top.v \
 		$(ROOT_DIR)/sim/tb_nna_top.v
-	$(VVP) $(ROOT_DIR)/sim/tb_nna_top.vvp
+	$(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_nna_top.vvp "ALL TESTS PASSED SUCCESSFULLY"
 
 test_safety:
 	@echo "--- Building and Running Safety Filter Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_safety_filter.vvp \
 		$(ROOT_DIR)/rtl/safety/safety_filter.v \
 		$(ROOT_DIR)/sim/tb_safety_filter.v
-	$(VVP) $(ROOT_DIR)/sim/tb_safety_filter.vvp
+	$(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_safety_filter.vvp "ALL TESTS PASSED"
 
 test_nna_corners_sim:
 	@echo "--- Building and Running NNA RTL Corner-Case Verification Testbench ---"
@@ -94,21 +94,21 @@ test_nna_corners_sim:
 		$(ROOT_DIR)/rtl/nna/nna_core.v \
 		$(ROOT_DIR)/rtl/nna/nna_top.v \
 		$(ROOT_DIR)/sim/tb_nna_corner_cases.v
-	$(VVP) $(ROOT_DIR)/sim/tb_nna_corner_cases.vvp
+	$(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_nna_corner_cases.vvp "ALL 8 RV_NNA RTL CORNER-CASE TESTS PASSED"
 
 test_safety_hw:
 	@echo "--- Building and Running Safety HW Register Interface Testbench (M7A) ---"
 	$(IVERILOG) -g2012 -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_safety_hw_interface.vvp \
 		$(ROOT_DIR)/rtl/safety/safety_filter.v \
 		$(ROOT_DIR)/sim/tb_safety_hw_interface.v
-	$(VVP) $(ROOT_DIR)/sim/tb_safety_hw_interface.vvp
+	$(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_safety_hw_interface.vvp "ALL PASSED"
 
 test_safety_adv:
 	@echo "--- Building and Running Adversarial Safety Filter Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_safety_adversarial.vvp \
 		$(ROOT_DIR)/rtl/safety/safety_filter.v \
 		$(ROOT_DIR)/sim/tb_safety_adversarial.v
-	$(VVP) $(ROOT_DIR)/sim/tb_safety_adversarial.vvp
+	$(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_safety_adversarial.vvp "ALL 6 ADVERSARIAL"
 
 test_trained_nna:
 	@echo "--- Building and Running Trained Policy rv_nna Testbench ---"
@@ -118,36 +118,41 @@ test_trained_nna:
 		$(ROOT_DIR)/rtl/nna/nna_core.v \
 		$(ROOT_DIR)/rtl/nna/nna_top.v \
 		$(ROOT_DIR)/sim/tb_nna_trained_policy.v
-	$(VVP) $(ROOT_DIR)/sim/tb_nna_trained_policy.vvp
+	$(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_nna_trained_policy.vvp "All 25/25 Authentic"
 
 test_soc: firmware
 	@echo "--- Building and Running Full SoC Integration Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/firmware.hex\" \
 		-o $(ROOT_DIR)/sim/tb_soc_top.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_top.v
-	$(VVP) $(ROOT_DIR)/sim/tb_soc_top.vvp
+	$(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_soc_top.vvp "SoC End-to-End System Test PASSED"
 
 test_nav: firmware
 	@echo "--- Building and Running End-to-End Robot Navigation Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/robot_nav.hex\" \
 		-o $(ROOT_DIR)/sim/tb_soc_nav.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v
-	$(VVP) $(ROOT_DIR)/sim/tb_soc_nav.vvp
+	$(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_soc_nav.vvp "All 8 Navigation SoC Hardware Assertions PASSED"
 
+COSIM_TIMEOUT ?= 580
 test_cosim: firmware
 	@echo "--- Building and Running Closed-Loop Co-Simulation Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/soc_cosim.hex\" \
 		-o $(ROOT_DIR)/sim/tb_soc_cosim.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_cosim.v
-	$(PYTHON) $(ROOT_DIR)/sim/soc_closed_loop_cosim.py --steps 10 --episodes 1
+	timeout $(COSIM_TIMEOUT) $(PYTHON) $(ROOT_DIR)/sim/soc_closed_loop_cosim.py --steps 10 --episodes 1
 
 test_uart:
 	$(IVERILOG) -o $(ROOT_DIR)/sim/tb_soc_uart.vvp $(ROOT_DIR)/rtl/periph/soc_uart.v $(ROOT_DIR)/sim/tb_soc_uart.v
-	$(VVP) $(ROOT_DIR)/sim/tb_soc_uart.vvp | grep -c FAIL | grep -qx 0 && echo "test_uart PASS"
+	$(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_soc_uart.vvp "fails=0"
 
+ULX3S_TIMEOUT ?= 590
 # Slow (~5 min wall in the sandbox, real 217-clock baud); intentionally not in test_rtl.
 test_ulx3s_top:
 	cd $(ROOT_DIR) && $(IVERILOG) -g2012 -I rtl -o sim/tb_ulx3s_top.vvp $(RTL_SRCS) fpga/ulx3s/ulx3s_top.v sim/tb_ulx3s_top.v
-	cd $(ROOT_DIR) && $(VVP) sim/tb_ulx3s_top.vvp | grep -E "PASS|FAIL|fails="
+	cd $(ROOT_DIR) && SIM_TIMEOUT=$(ULX3S_TIMEOUT) $(ROOT_DIR)/sim/run_vvp.sh $(ROOT_DIR)/sim/tb_ulx3s_top.vvp "fails=0"
 
-test_rtl: test_uart test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc
+test_negative:
+	$(ROOT_DIR)/sim/negative/run_negative.sh
+
+test_rtl: test_negative test_uart test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc
 
 synth_check:
 	@echo "--- Running Yosys RTL Syntax & Elaboration Check ---"
