@@ -19,7 +19,7 @@ Parameter: `soc_top.UART_CLKS_PER_BIT` (default 217) passes through to soc_uart.
 - Before, TXDATA writes were accepted at any time and nothing was serialised. Now back-to-back writes lose bytes unless firmware polls 0x08 (or 0x04 bit0).
 - robot_nav_firmware.s already polled 0x08 bit0 before each byte (uart_puts), so it needed no change.
 - soc_firmware.s (the smoke firmware) wrote bytes back to back. It now polls 0x08 before each byte. firmware.hex was regenerated from it.
-- Legacy testbenches (tb_soc_top, tb_soc_nav, tb_soc_cosim) instantiate soc_top with UART_CLKS_PER_BIT=4 so their cycle budgets stay valid. The cosim cycle-latency figures were measured with an instant-ready UART and the cosim testbench now uses divider 4, so those figures are not re-derived here. On the board the real divider adds roughly 148 bytes x 2170 cycles = about 321k cycles (about 12.9 ms) to the banner. That is arithmetic, not a measurement.
+- Legacy testbenches (tb_soc_top, tb_soc_nav, tb_soc_cosim) instantiate soc_top with UART_CLKS_PER_BIT=4 so their cycle budgets stay valid. The cosim cycle-latency figures were measured with an instant-ready UART and the cosim testbench now uses divider 4, so those figures are not re-derived here. On the board the real divider adds roughly 148 bytes x 2170 cycles = about 321k cycles (about 12.85 ms) to the banner. That is arithmetic, not a measurement.
 - Simulation-only stdout echo is kept under `ifndef SYNTHESIS`, and now only echoes accepted bytes.
 
 ## Tests

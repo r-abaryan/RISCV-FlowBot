@@ -48,7 +48,7 @@ Measured:
 - test_nav (robot_nav firmware) total cycles 57389 with UART at 4 clk/bit; this bench was not re-run at 217 and no
   telemetry-in-loop latency is claimed.
 - Wrapper bench (217 clk/bit): banner of 148 bytes completes at simulated 14.20 ms vs. reset release; arithmetic estimate of added
-  cost is 148*10*217 clocks = 321,160 clk = 12.8 ms at 25 MHz (docs/30 said 12.9; the exact product is 12.85 ms).
+  cost is 148*10*217 clocks = 321,160 clk = 12.85 ms at 25 MHz (docs/30 previously said 12.9, now corrected).
 - Behaviour changes: writes while busy are dropped and set sticky OVERRUN (firmware polls, wrapper bench saw 0 overrun and 0
   writes-while-busy); the old firmware's back-to-back writes would lose bytes, so soc_firmware.s was changed.
 Not measured: any per-step control-loop latency with real-rate telemetry. If firmware ever prints inside the control loop at
@@ -71,3 +71,8 @@ Caveats: the new synth is the first run of the UART RTL on Yosys (my sandbox has
 the design's CPU clock relation to it is per existing docs; timing-met in nextpnr is not a hardware claim; 3 seeds is a small sample.
 Cost: two workflows, up to 120 min each timeout. Need owner approval before dispatch (workflow_dispatch needs the workflow on the
 ref; both are on main).
+
+## 5. Telemetry recommendation (owner-approved policy)
+UART telemetry must be nonblocking and bounded, and kept outside time-critical control paths: the control loop
+may only enqueue into a small fixed-size buffer (drop and count on full) or write a byte when TX_BUSY is clear;
+draining happens in idle time. No unbounded polling of TX_BUSY inside the loop. (A 10-char line is about 3.5 ms at 25 MHz, arithmetic only.)
