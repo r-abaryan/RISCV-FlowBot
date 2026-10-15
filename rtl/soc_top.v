@@ -9,7 +9,8 @@
 `include "soc_pkg.sv"
 
 module soc_top #(
-    parameter ROM_INIT_FILE = ""
+    parameter ROM_INIT_FILE = "",
+    parameter integer UART_CLKS_PER_BIT = 217  // 25 MHz / 115200
 ) (
     input  wire        clk,
     input  wire        rst_n,
@@ -327,7 +328,7 @@ module soc_top #(
         .timer_irq (timer_irq)
     );
 
-    soc_uart u_uart (
+    soc_uart #(.CLKS_PER_BIT(UART_CLKS_PER_BIT)) u_uart (
         .clk      (clk),
         .rst_n    (rst_n),
         .wb_adr_i (uart_adr),

@@ -20,12 +20,24 @@ _start:
     li s4, 0x20000000   /* RAM_BASE */
 
     /* 3. Send UART Startup Banner ('S', 'o', 'C', '\n') */
+uart_wait1:
+    lw t5, 8(s2)         /* M8E: poll TX_BUSY */
+    bne t5, zero, uart_wait1
     li t0, 0x53         /* 'S' */
     sw t0, 0(s2)
+uart_wait2:
+    lw t5, 8(s2)         /* M8E: poll TX_BUSY */
+    bne t5, zero, uart_wait2
     li t0, 0x6F         /* 'o' */
     sw t0, 0(s2)
+uart_wait3:
+    lw t5, 8(s2)         /* M8E: poll TX_BUSY */
+    bne t5, zero, uart_wait3
     li t0, 0x43         /* 'C' */
     sw t0, 0(s2)
+uart_wait4:
+    lw t5, 8(s2)         /* M8E: poll TX_BUSY */
+    bne t5, zero, uart_wait4
     li t0, 0x0A         /* '\n' */
     sw t0, 0(s2)
 
@@ -121,6 +133,9 @@ apply_motor:
     sw t3, 0(s3)
 
     /* Send Completion Character 'K' to UART */
+uart_wait5:
+    lw t5, 8(s2)         /* M8E: poll TX_BUSY */
+    bne t5, zero, uart_wait5
     li t0, 0x4B         /* 'K' */
     sw t0, 0(s2)
 

@@ -138,7 +138,16 @@ test_cosim: firmware
 		-o $(ROOT_DIR)/sim/tb_soc_cosim.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_cosim.v
 	$(PYTHON) $(ROOT_DIR)/sim/soc_closed_loop_cosim.py --steps 10 --episodes 1
 
-test_rtl: test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc
+test_uart:
+	$(IVERILOG) -o $(ROOT_DIR)/sim/tb_soc_uart.vvp $(ROOT_DIR)/rtl/periph/soc_uart.v $(ROOT_DIR)/sim/tb_soc_uart.v
+	$(VVP) $(ROOT_DIR)/sim/tb_soc_uart.vvp | grep -c FAIL | grep -qx 0 && echo "test_uart PASS"
+
+# Slow (~5 min wall in the sandbox, real 217-clock baud); intentionally not in test_rtl.
+test_ulx3s_top:
+	cd $(ROOT_DIR) && $(IVERILOG) -g2012 -I rtl -o sim/tb_ulx3s_top.vvp $(RTL_SRCS) fpga/ulx3s/ulx3s_top.v sim/tb_ulx3s_top.v
+	cd $(ROOT_DIR) && $(VVP) sim/tb_ulx3s_top.vvp | grep -E "PASS|FAIL|fails="
+
+test_rtl: test_uart test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc
 
 synth_check:
 	@echo "--- Running Yosys RTL Syntax & Elaboration Check ---"

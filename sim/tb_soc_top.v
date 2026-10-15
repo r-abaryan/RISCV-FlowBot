@@ -35,7 +35,8 @@ module tb_soc_top;
 
     // DUT Instance
     soc_top #(
-        .ROM_INIT_FILE(`ROM_INIT_FILE)
+        .ROM_INIT_FILE(`ROM_INIT_FILE),
+        .UART_CLKS_PER_BIT(4) // fast UART keeps legacy sim budgets (M8E)
     ) dut (
         .clk             (clk),
         .rst_n           (rst_n),
