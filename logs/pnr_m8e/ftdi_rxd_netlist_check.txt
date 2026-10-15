@@ -1,0 +1,5 @@
+Netlist check of ftdi_rxd in soc_top.json (run 38733498294, artifact soc_top-json), done with python3 over the JSON:
+ftdi_rxd bit -> driven by TRELLIS_FF "ftdi_rxd_TRELLIS_FF_Q" (Q), REGSET=SET (resets to 1 = idle high).
+FF DI <- PFUMX <- 2 x LUT4 whose inputs include other nets (state/shift/counter logic) and the FF's own Q.
+Not a constant. M8C netlist (run 38706204639): lpf_port_check printed "NOTE: output ftdi_rxd is driven by constant 1".
+M8E lpf_port_check prints constant notes only for led[3..7] (constant 0).

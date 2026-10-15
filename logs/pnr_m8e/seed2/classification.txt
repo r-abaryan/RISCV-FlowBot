@@ -1,0 +1,1 @@
+TIMING_MET - routed; $glbnet$clk_25mhz$TRELLIS_IO_IN 35.59>=25.00 MHz (pre-bitstream STA estimate, no hardware)

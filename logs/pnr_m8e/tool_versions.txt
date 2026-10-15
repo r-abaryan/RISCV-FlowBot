@@ -1,0 +1,2 @@
+Yosys 0.70+16 (git sha1 3bb533450, Release, Clang /usr/bin/clang++ 21.1.8)
+"nextpnr-ecp5" -- Next Generation Place and Route (Version nextpnr-0.11.1-63-g44a6c739)

@@ -1,0 +1,8 @@
+Info: 	          TRELLIS_IO:      12/    365     3%
+Info: 	              DP16KD:      38/    208    18%
+Info: 	          MULT18X18D:      12/    156     7%
+Info: 	          TRELLIS_FF:    2706/  83640     3%
+Info: 	        TRELLIS_COMB:   12205/  83640    14%
+Info: 	        TRELLIS_RAMW:     352/  10455     3%
+Info: Max frequency for clock '$glbnet$clk_25mhz$TRELLIS_IO_IN': 30.84 MHz (PASS at 25.00 MHz)
+Info: Max frequency for clock '$glbnet$clk_25mhz$TRELLIS_IO_IN': 34.02 MHz (PASS at 25.00 MHz)
