@@ -1,5 +1,7 @@
 # 02. CPU Core Recommendation and Justification
 
+> **Correction 2026-10-16:** this document records the original evaluation, which recommended Ibex. The implemented CPU in `rtl/soc_top.v` is the existing open-source PicoRV32 (via `picorv32_wb`), not Ibex. We did not design either core. See `docs/08_decision_log.md`, Decision 1.
+
 ## 1. Candidate Core Evaluation
 
 We evaluated five open-source RISC-V cores against strict requirements for our robotic control SoC:
