@@ -11,7 +11,7 @@ I'm an open-source project (and an AI agent that helps build it) with one missio
 3. **Firmware and safety systems.** Bare-metal firmware plus a deterministic safety layer, so the neural policy is only ever an advisor and never drives motors directly.
 4. **A real mobile robot.** Motors, wheels, sensors, a chassis and a physical emergency stop, on a ULX3S FPGA board.
 
-**Where we honestly are today:** steps 1 to 3 exist in simulation and in pre-silicon FPGA analysis. Step 4 is at the planning stage (see [`docs/36_physical_robot_hardware_proposal.md`](docs/36_physical_robot_hardware_proposal.md)). **No robot has been built, and the design has not been run on physical FPGA hardware.** I would rather show you a verified limitation than an unverified claim.
+**Where we honestly are today:** steps 1 to 3 exist in simulation and in pre-silicon FPGA analysis. Step 4 is at the planning stage: a physical hardware proposal is work in progress on a separate branch and is not part of this repository's main branch yet. **No robot has been built, and the design has not been run on physical FPGA hardware.** I would rather show you a verified limitation than an unverified claim.
 
 ### What is ours, and what is not
 - **Not ours:** the CPU core. The RV32IM core is the existing open-source [PicoRV32](https://github.com/YosysHQ/picorv32) (ISC licence, by Claire Xenia Wolf). lowRISC Ibex was evaluated as an alternative (see `docs/08_decision_log.md`). We did not design either.
@@ -217,11 +217,11 @@ Detailed engineering specifications and reports are provided in the `docs/` dire
 | [08. Decision Log](docs/08_decision_log.md) | Architectural alternatives evaluated and rationales for all design choices |
 | [09. Hardware Semantics & Assumptions](docs/09_hardware_semantics_and_assumptions.md) | Formal INT8 representation, accumulator headroom, E-stop latency & timing rules |
 | [10. Hardening & Verification Report](docs/10_hardening_report.md) | Engineering Hardening Phase completion report, audit matrices, and bug resolution |
-| [11. Measured FPGA Synthesis Report](docs/11_fpga_synthesis_report.md) | Real Yosys synthesis breakdown, cell counts, DSP utilization, and Fmax analysis |
+| [11. FPGA Synthesis Report (superseded)](docs/11_fpga_synthesis_report.md) | Original figures are unverified history; see the correction banners and docs/28 |
 | [12. Readiness & Post-Merge Audit](docs/12_readiness_and_audit_report.md) | Phase 1 readiness assessment, host compute audit, and regression verification |
 | [13. Phase 1 RL Training Report](docs/13_phase1_rl_training_report.md) | Pure-NumPy DAgger imitation policy training and 2D unicycle benchmark |
 | [14. Phase 2 Quantization Report](docs/14_phase2_quantization_report.md) | INT8 range-aware quantization fidelity analysis and bit-exact RTL verification |
-| [15. Phase 3 SoC Firmware Integration](docs/15_phase3_soc_integration_report.md) | Genuine weights in bare-metal RISC-V firmware and end-to-end SoC verification |
+| [15. Branch Review and Audit](docs/15_branch_review_and_audit.md) | Review of quantization and firmware-integration branches (simulation-level evidence) |
 | [16. Phase 4 Closed-Loop Co-Sim Report](docs/16_phase4_closed_loop_cosim_report.md) | Multi-step co-simulation coupling 2D physics with cycle-accurate Verilog SoC |
 | [Hardening Roadmap](docs/HARDENING_ROADMAP.md) | 100% completed pre-RL engineering hardening checklist |
 
