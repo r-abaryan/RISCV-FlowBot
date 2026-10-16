@@ -55,3 +55,9 @@ Goal: one written safety specification and demonstrated equivalence of Python, f
 8. Re-run (small, defined) M10a stall measurement only after parity, with the decided margin, as a characterisation, not a tuning.
 Exit criteria: spec signed off by owner; zero mismatches over the vector set between golden and firmware (and RTL if built); risk register R1 to R3 updated with outcomes. Out of scope: retraining, reward changes, changing the stall behaviour.
 Open questions for owner: deployment margin, physical sensor layout, acceptable stall behaviour, whether RTL filter is wanted.
+
+## 7. Final scope statement and confirmed filter issue (2026-10-16)
+- Scope: simulation-only research milestone (M9a/M9b/M10a/M10a-2). It is NOT approval for physical deployment. Neither the 25 cm nor the 40 cm margin is approved.
+- Verified: 264 study files (13,200 episodes) and 11 of 11 weight files match their SHA-256 manifests. test_rom_bounds: 2 passed, 2 skipped (ELF unavailable); the skips are not passes.
+- Confirmed from code: the Python filter is called with `min(env.latest_hits)` over all eight rays (`sw/policy/m6_common.py:53`). A nearby obstacle seen only by a side ray (+-90 or +-60 degrees) therefore reduces or stops forward motion exactly as a frontal obstacle would. docs/34 observed side rays closest in 79.2 percent of critical steps in a non-random stall subset. That this is the cause of the stalls is still a hypothesis (no direction-aware variant was tested).
+- Risks R1 to R7 remain open. RTL has only a heartbeat/E-stop watchdog.
