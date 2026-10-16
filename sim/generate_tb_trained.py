@@ -5,10 +5,14 @@ Generates sim/tb_nna_trained_policy.v with authentic test vectors from quantizat
 
 import json
 import os
+import sys
 
-def generate_tb():
-    weights = json.load(open("sw/policy/trained_policy_weights.json"))
-    vectors = json.load(open("sim/test_vectors_trained.json"))
+def generate_tb(weights_path="sw/policy/trained_policy_weights.json",
+                vectors_path="sim/test_vectors_trained.json",
+                out_path="sim/tb_nna_trained_policy.v",
+                module_name="tb_nna_trained_policy"):
+    weights = json.load(open(weights_path))
+    vectors = json.load(open(vectors_path))
 
     def pack_matrix(matrix):
         words = []
@@ -309,9 +313,16 @@ module tb_nna_trained_policy;
 
 endmodule
 """
-    with open("sim/tb_nna_trained_policy.v", "w") as f:
+    tb_content = tb_content.replace("tb_nna_trained_policy", module_name)
+    with open(out_path, "w") as f:
         f.write(tb_content)
-    print("Generated sim/tb_nna_trained_policy.v successfully!")
+    print("Generated %s successfully!" % out_path)
 
 if __name__ == "__main__":
-    generate_tb()
+    # Default (no args): regenerate the IL test exactly as before.
+    # `--rl`: RL seed-1 test from sw/policy/rl_seed1_policy.json (see gen_rl_vectors.py).
+    if "--rl" in sys.argv:
+        generate_tb("sw/policy/rl_seed1_policy.json", "sim/test_vectors_rl_seed1.json",
+                    "sim/tb_nna_rl_policy.v", "tb_nna_rl_policy")
+    else:
+        generate_tb()
