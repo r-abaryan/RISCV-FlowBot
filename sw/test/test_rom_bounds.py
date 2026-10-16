@@ -8,6 +8,8 @@ Needs riscv-none-elf-size/nm and robot_nav.elf for (3),(5); otherwise those are 
 import os, re, subprocess, shutil, sys
 R = os.path.join(os.path.dirname(__file__), '..', '..')
 FW = f'{R}/sw/firmware'
+passed = []
+skipped = []
 def fail(m): print('FAIL', m); sys.exit(1)
 depth = int(re.search(r'\.MEM_SIZE_WORDS\s*\(\s*(\d+)', open(f'{R}/rtl/soc_top.v').read().split('soc_rom')[1]).group(1))
 ld = re.search(r'ROM\s*\(rx\)\s*:\s*ORIGIN\s*=\s*(\w+),\s*LENGTH\s*=\s*(\d+)K', open(f'{FW}/linker.ld').read())
@@ -17,6 +19,7 @@ words = [l.strip() for l in open(f'{FW}/robot_nav.hex') if l.strip() and not l.s
 if not all(re.fullmatch(r'[0-9a-f]{8}', w) for w in words): fail('malformed hex word')
 n = len(words)
 if n > depth: fail(f'image {n} words > ROM {depth}')
+passed.append('depth/linker match'); passed.append('image fits ROM')
 print(f'OK   ROM depth {depth} words (RTL == linker {ld.group(2)}K); image {n} words; unused tail {depth-n} words')
 if shutil.which('riscv-none-elf-size') and os.path.exists(f'{FW}/robot_nav.elf'):
     sz = subprocess.check_output(['riscv-none-elf-size', '-A', f'{FW}/robot_nav.elf'], text=True)
@@ -25,6 +28,12 @@ if shutil.which('riscv-none-elf-size') and os.path.exists(f'{FW}/robot_nav.elf')
     nm = subprocess.check_output(['riscv-none-elf-nm', '-n', f'{FW}/robot_nav.elf'], text=True).split()
     last = max(int(l.split()[0], 16) for l in subprocess.check_output(['riscv-none-elf-nm', f'{FW}/robot_nav.elf'], text=True).splitlines() if len(l.split()) == 3)
     if last >= n * 4: fail('symbol beyond image')
+    passed.append('hex == ELF .text'); passed.append('symbols inside image')
     print(f'OK   hex words == ceil(.text {text} B / 4); highest symbol 0x{last:x} inside image ({n*4} B)')
 else:
-    print('SKIPPED ELF cross-check (toolchain or robot_nav.elf absent)')
+    skipped.extend(['hex == ELF .text', 'symbols inside image'])
+    print('SKIPPED ELF cross-check (toolchain or robot_nav.elf absent): NOT verified, NOT counted as pass')
+print(f'SUMMARY: {len(passed)} passed ({"; ".join(passed)}); {len(skipped)} SKIPPED ({"; ".join(skipped) or "none"})')
+if skipped:
+    print('WARNING: result is PARTIAL. Skipped checks are not passes. Set REQUIRE_ELF=1 to make skips a failure.')
+    if os.environ.get('REQUIRE_ELF') == '1': sys.exit(2)
