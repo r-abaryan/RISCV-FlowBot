@@ -21,6 +21,7 @@ Protocol: docs/30_m9b_protocol.md, unchanged. Runner `sw/policy/m9b_study.py`, s
 - RL seed 1 minus IL, paired success difference, 95% bootstrap interval excludes zero in favour of RL in all three environments for il101, il103, il104 and il_base. For il102 and il105 it includes zero on env C (+0.040 [-0.003,+0.083]; +0.037 [-0.005,+0.080]).
 - By the pre-set rule, a superiority claim is therefore met against IL seeds 101, 103, 104 and the base, and not met against 102 and 105. Since the rule is per IL seed and not met for all, the study does not support a blanket "RL beats IL" claim. This is unadjusted for multiple comparisons.
 - Caveat: timeouts of about 50 percent on B and C for all policies may reflect harsh environment settings (the policies were not designed for them). I did not investigate that.
+- Follow-up: see docs/32 (ARS training-seed spread, seed disjointness, manifest now per-file via scripts/verify_m9b_manifest.sh).
 - RL seeds 2..5 are reference only and are not part of the rule.
 
 ## Verification of the numbers above
