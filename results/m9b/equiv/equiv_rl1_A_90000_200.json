@@ -1,0 +1,1 @@
+{"tag": "rl1", "env": "A", "start": 90000, "n": 200, "chunk": 50, "cont_succ": 187, "ordered_identical": true, "shuffled_identical": true, "wall_cont_s": 68.09873723983765, "wall_total_s": 204.496089220047}

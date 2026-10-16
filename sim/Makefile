@@ -22,9 +22,9 @@ RTL_SRCS = \
 	$(ROOT_DIR)/rtl/cpu/picorv32.v \
 	$(ROOT_DIR)/rtl/soc_top.v
 
-.PHONY: test_safety_hw all sim firmware test_py test_nna_corners test_nna test_safety test_soc test_nav test_nna_corners_sim test_safety_adv test_trained_nna test_quant test_cosim synth_check clean
+.PHONY: test_rl_nna test_safety_hw all sim firmware test_py test_nna_corners test_nna test_safety test_soc test_nav test_nna_corners_sim test_safety_adv test_trained_nna test_quant test_cosim synth_check clean
 
-all: test_py test_nna_corners test_quant test_rtl test_trained_nna test_nav
+all: test_py test_nna_corners test_quant test_rtl test_trained_nna test_rl_nna test_nav
 
 firmware:
 	@echo "--- Assembling Bare-metal Firmware ---"
@@ -58,6 +58,7 @@ test_py:
 	$(PYTHON) $(ROOT_DIR)/sw/test/test_safety_c_mirror.py
 	$(PYTHON) $(ROOT_DIR)/sw/test/test_safety_c_compiled.py
 	$(PYTHON) $(ROOT_DIR)/sw/test/test_rl_export.py
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_rom_bounds.py
 	@echo "--- [4/4] Running End-to-End Navigation Policy Simulation ---"
 	PYTHONPATH=$(ROOT_DIR)/sw/model:$(ROOT_DIR)/sw/safety $(PYTHON) $(ROOT_DIR)/sw/model/robot_policy_e2e.py
 
@@ -119,6 +120,19 @@ test_trained_nna:
 		$(ROOT_DIR)/rtl/nna/nna_top.v \
 		$(ROOT_DIR)/sim/tb_nna_trained_policy.v
 	$(VVP) $(ROOT_DIR)/sim/tb_nna_trained_policy.vvp
+
+# RL seed-1 bit-exact test (weights from rl_seed1_policy.json, cross-checked vs nav_weights.inc by gen_rl_vectors.py)
+test_rl_nna:
+	@echo "--- Building and Running RL seed-1 Policy rv_nna Testbench ---"
+	$(PYTHON) $(ROOT_DIR)/sim/gen_rl_vectors.py
+	cd $(ROOT_DIR) && $(PYTHON) sim/generate_tb_trained.py --rl
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -o $(ROOT_DIR)/sim/tb_nna_rl_policy.vvp \
+		$(ROOT_DIR)/rtl/nna/nna_mac4.v \
+		$(ROOT_DIR)/rtl/nna/nna_regs.v \
+		$(ROOT_DIR)/rtl/nna/nna_core.v \
+		$(ROOT_DIR)/rtl/nna/nna_top.v \
+		$(ROOT_DIR)/sim/tb_nna_rl_policy.v
+	$(VVP) $(ROOT_DIR)/sim/tb_nna_rl_policy.vvp
 
 test_soc: firmware
 	@echo "--- Building and Running Full SoC Integration Testbench ---"

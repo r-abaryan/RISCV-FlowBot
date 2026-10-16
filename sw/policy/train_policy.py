@@ -30,7 +30,10 @@ class MLP16x8x2:
         h = np.maximum(0.0, np.dot(self.w1, x) + self.b1)
         return np.clip(np.dot(self.w2, h) + self.b2, -1.0, 1.0)
 
-def train_policy(n_initial_episodes=50, dagger_rounds=2, dagger_episodes=30):
+def train_policy(n_initial_episodes=50, dagger_rounds=2, dagger_episodes=30, seed=42, out_path=None, reseed=False):
+    """seed: network init seed. reseed=True additionally reseeds the global RNG from seed before each
+    optimisation stage (minibatch order); default False keeps the original behaviour bit-for-bit.
+    out_path: output JSON (default: trained_policy_weights.json, as before)."""
     env = RobotEnv2D(max_steps=150)
     teacher = HeuristicPolicy()
     
@@ -46,7 +49,7 @@ def train_policy(n_initial_episodes=50, dagger_rounds=2, dagger_episodes=30):
             if done:
                 break
                 
-    policy = MLP16x8x2(seed=42)
+    policy = MLP16x8x2(seed=seed)
     
     # Adam state
     mw1, vw1 = np.zeros_like(policy.w1), np.zeros_like(policy.w1)
@@ -54,9 +57,12 @@ def train_policy(n_initial_episodes=50, dagger_rounds=2, dagger_episodes=30):
     mw2, vw2 = np.zeros_like(policy.w2), np.zeros_like(policy.w2)
     mb2, vb2 = np.zeros_like(policy.b2), np.zeros_like(policy.b2)
     t_step = 0
+    stage = 0
 
     def optimize_adam(epochs, lr):
-        nonlocal t_step
+        nonlocal t_step, stage
+        stage += 1
+        if reseed: np.random.seed(seed * 1000 + stage)
         X = np.array(X_list, dtype=np.float32)
         Y = np.array(Y_list, dtype=np.float32)
         batch_size = 128
@@ -169,11 +175,15 @@ def train_policy(n_initial_episodes=50, dagger_rounds=2, dagger_episodes=30):
         }
     }
     
-    out_path = os.path.join(os.path.dirname(__file__), "trained_policy_weights.json")
+    if out_path is None: out_path = os.path.join(os.path.dirname(__file__), "trained_policy_weights.json")
     with open(out_path, "w") as f:
         json.dump(model_data, f, indent=2)
     print(f"[Train] Saved quantized policy to {out_path}")
     return policy, model_data
 
 if __name__ == "__main__":
-    train_policy()
+    if len(sys.argv) > 2 and sys.argv[1] == "--seed":
+        sd = int(sys.argv[2])
+        train_policy(seed=sd, reseed=True, out_path=os.path.join(os.path.dirname(__file__), "m9b_models", f"il_seed{sd}.json"))
+    else:
+        train_policy()
