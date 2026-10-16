@@ -90,3 +90,6 @@ Each would change safety behaviour and would need its own review, tests, and Pyt
 
 ## F. Checks run for this addendum
 Documentation consistency only: line references above were grepped against the source files in this checkout; no simulations were run. See the session report for the results of those checks.
+
+## G. Addendum (see docs/35)
+Code reading since this note: firmware margin is 25 cm (`safety_driver.h:16`) and `rtl/safety/safety_filter.v` has no distance input, so the Python/RTL parity question in E6 is moot: there is no RTL distance filter. Python vs firmware parity remains untested. Also the 8 rays are at -90, -60, -30, -10, +10, +30, +60, +90 degrees. Tracked as risks R1 to R3 in docs/35.
