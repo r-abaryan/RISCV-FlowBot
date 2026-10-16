@@ -31,3 +31,62 @@ Data: `results/m10a2/trace.json` (per-step log), `results/m10a2/summary.md` (gen
 
 ## Decision needed from owner
 Options: (a) document the stall as a conservative-safety limitation; (b) design a deterministic, direction-aware or recovery rule, with its own verification and firmware/RTL parity work. Neither has been started.
+
+---
+
+# Addendum: owner decision, code references and limitation statement
+
+Owner decision (this session): option (a). The stall is documented as a conservative-safety limitation. No safety behaviour, recovery rule, policy, training, firmware or RTL was changed and no new experiment was run. Everything below that is marked UNAPPROVED is a possible future design idea only.
+
+## A. Confirmed code behaviour (read from source)
+Line numbers refer to this branch.
+
+| Item | Source | What the code does |
+|---|---|---|
+| Input to the filter is the minimum over all rays | `sw/policy/m6_common.py:53` and `sw/policy/m10a2_trace.py:21-23` | The caller passes `min(env.latest_hits)`. No ray direction is passed to the filter. |
+| Filter signature has one scalar distance | `sw/safety/safety_layer.py:43` | `filter_action(v_raw, w_raw, min_obstacle_dist, inference_ok)`. The filter cannot distinguish front from side. |
+| Margin value | `sw/policy/m6_common.py:37-41` (also `a_max=2.0`, `a_brake=1.5`; the `safety_layer.py:15` default 0.15 is overridden) | `d_margin = env.robot_radius + 0.15`. With `robot_radius = 0.25` (`sim/robot_env.py:20`) this is 0.40 m. Rays start at the robot centre. |
+| Critical condition | `sw/safety/safety_layer.py:76-80` | If `min_obstacle_dist <= d_margin`: `v_safe = min(0.0, v_c2)`, `w_safe = w_c2`, reason `CRITICAL_OBSTACLE_BRAKE`. Forward velocity is forbidden; reverse and rotation (after slew limiting) are allowed. |
+| Dynamic braking condition | `safety_layer.py:37-41, 73, 81-87` | `d_stop = d_margin + v_c2^2 / (2*a_brake)` for `v_c2 > 0` (a_brake 1.5). If `d_margin < min_dist < d_stop`, `v_safe = v_c2 * scale`, with scale linear from 0 at the margin to 1 at `d_stop`. Reason `DYNAMIC_TTC_BRAKING`. |
+| Per-step cap (no reason code of its own) | `safety_layer.py:92-94` | If `v_safe > 0`: `v_safe = min(v_safe, max(0, min_dist - d_margin) / dt)`. It changes `v_safe` without changing the reason string. |
+| Slew limiting happens before the obstacle rule | `safety_layer.py:62-70` | `v_c2` is `v_prev` moved by at most `a_max*dt`. |
+| Invalid distance is treated as contact | `safety_layer.py:48-50` | NaN, inf or negative becomes 0.0. |
+| Firmware version differs in form | `sw/firmware/safety_driver.h:16, 87-95` | Fixed `MIN_STOP_DISTANCE_CM 25`, a linear cap `(d_cm - 25)*5>>3`, no `d_stop` term, no reason code. The firmware margin (25 cm) is not the 0.40 m used in these closed-loop runs. I did not check how the margin is set in the firmware or RTL for the stall experiments, nor whether firmware and Python are bit-equivalent here. |
+
+Confirmed consequence: because the filter receives a single minimum over all rays, any surface (wall or pillar) whose ray distance is at or below 0.40 m at any bearing makes the critical branch fire and forbids forward motion. This follows from the code and does not depend on the trace. Rays are cast (front half-plane only, -90 to +90 degrees) against the arena walls and the circular pillars (`sim/robot_env.py` raycast), so "obstacle" here includes walls.
+
+The ray at 0.40 m from a centre with radius 0.25 means the robot body is 0.15 m from the surface along that ray.
+
+## B. What the trace shows versus what is still a hypothesis
+Confirmed by logged data (21 stalled episodes, 1050 window steps, non-random subset):
+- CRITICAL_OBSTACLE_BRAKE in 86.4 percent of window steps; policy requests forward above 0.1 while permitted is below 0.02 in 88.7 percent; median min ray distance 0.384 m against 0.400 m; the closest ray is a side ray (index 0 or 7) in 79.2 percent of critical steps.
+
+Hypothesis (not tested): that the stall is caused by the side-ray rule, meaning that a direction-aware margin would release these episodes. The data are consistent with it, but:
+- The closest ray being a side ray does not show that the front was clear. Only the minimum and its index were logged, not all 8 distances.
+- Whether the side hit is a wall or a pillar is not logged.
+- A counterfactual run would be needed, and it was not done. It might also expose collisions that the current conservative rule prevents.
+- The cause of the policy's failure to turn away (policy behaviour, versus the filter slew limit on w, versus the environment) is not separated.
+- Whether the stall is a property of the filter, of these arenas, or of these policies is open. Do not generalise to other policies or arenas.
+
+## C. Limitation statement (accepted)
+The current deterministic filter is conservative by design. It guarantees no forward motion when any ray is within 0.40 m, at the cost of liveness: a robot that ends up within 0.40 m of a surface at a side bearing can stall indefinitely if the policy does not rotate or reverse away. In the M10a-2 subset this was the dominant stall mode. Timeouts attributed to it are safety-preserving and should be reported as stalls, not as policy collisions or successes. The filter provides a safety property (no forward drive into the margin), not a progress guarantee.
+
+## D. Possible future design options (UNAPPROVED, not designed, not implemented, not evaluated)
+Each would change safety behaviour and would need its own review, tests, and Python/firmware/RTL parity work before any use.
+1. Direction-aware margin: apply the critical rule only to rays within a forward cone (or weight by heading), using a smaller side margin. Risk: turning or curved motion can sweep the body into a side obstacle; needs a swept-footprint argument.
+2. Sign-aware motion check: forbid only motion components that reduce clearance on the closest ray, using requested v and w.
+3. Deterministic recovery rule: after N consecutive stalled steps, command a bounded reverse or rotate-away manoeuvre. Risk: the simulated rays span only -90 to +90 degrees (`sim/robot_env.py:30-33`), so there is no rear sensing and a reverse manoeuvre would be blind; added state to verify.
+4. Escalation to the CPU or a supervisor: report the stall to the host and stop, with no autonomous manoeuvre. Lowest risk, no liveness gain.
+5. Policy-side mitigation (training with the filter in the loop). Not a safety-layer change, but it is out of scope for this decision.
+6. Do nothing and report the stall rate as a known limitation.
+
+## E. Unresolved safety questions
+1. Is the 0.40 m margin (robot radius plus 0.15) the intended value for deployment? The firmware uses 25 cm; the relationship is not documented here.
+2. The simulated rays cover only -90 to +90 degrees (confirmed in source), so the rear is unsensed. Is that true of the physical robot, and is reverse motion acceptable there?
+3. Is a stall (safe stop) acceptable for the intended application, or must the robot guarantee progress or an escape?
+4. Does the per-step cap (`safety_layer.py:92-94`) contribute to stalls? It has no reason code.
+5. Is the rule allowing rotation while in the critical branch safe for a non-circular or real-world footprint? The simulation robot is a circle.
+6. Python filter, firmware driver and any RTL filter parity at 0.40 m was not checked.
+
+## F. Checks run for this addendum
+Documentation consistency only: line references above were grepped against the source files in this checkout; no simulations were run. See the session report for the results of those checks.
