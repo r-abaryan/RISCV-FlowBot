@@ -5,8 +5,8 @@ This log documents major architectural alternatives evaluated, trade-offs analyz
 ---
 
 ### Decision 1: CPU Core Selection
-- **Status:** Approved
-- **Chosen Option:** lowRISC Ibex (with PicoRV32 as ultra-compact fallback)
+- **Status:** SUPERSEDED BY IMPLEMENTATION (corrected 2026-10-16). The original selection below (Ibex) was never implemented. `rtl/soc_top.v` instantiates `picorv32_wb`, a wrapper around the existing open-source PicoRV32 core (ISC licence, Claire Xenia Wolf, YosysHQ), which is the CPU in all simulation and synthesis results. The project did not design PicoRV32. No recorded decision explains the switch; the rationale is unknown and is not asserted here. The original text is kept unchanged below for history.
+- **Chosen Option (original, not implemented):** lowRISC Ibex (with PicoRV32 as ultra-compact fallback)
 - **Alternatives Considered:**
   1. *PicoRV32:* Very small and simple Verilog-2001, but low IPC and slow multi-cycle multiplier.
   2. *VexRiscv:* Excellent IPC and FPGA utilization, but source code is SpinalHDL (Scala), making it less accessible for standard Verilog educational/inspection workflows.
