@@ -53,10 +53,12 @@ Note on sensitivity (arithmetic only, no robot data): at a speed v the term v * 
 
 ## 4. Sensor coverage requirement
 Known limitation, confirmed from code: the filter receives min over all eight rays, so a side obstacle limits forward speed like a frontal one (docs/35 section 7). The reverse direction and blind sectors between rays are not characterised. Requirements to settle before physical navigation:
-- B1 (to confirm against docs/45 on PR 26, not yet merged): the physical sensor layout (type, count, mounting, field of view, minimum range) is not defined. Owner decision.
-- B2: rear and side coverage if reverse or in-place rotation can sweep the chassis into obstacles. Rotation of a non-circular chassis needs its swept radius.
-- B3: blind sectors, minimum sensing range (many ultrasonic and ToF sensors read badly closer than a few cm) and height of obstacles relative to sensor plane.
-Note: I did not re-derive the exact B1/B2/B3 wording; map this section to the labels in docs/45 (PR 26) when reviewing.
+- SC-1: the physical sensor layout (type, count, mounting, field of view, minimum range) is not defined. Owner decision.
+- SC-2: rear and side coverage if reverse or in-place rotation can sweep the chassis into obstacles. Rotation of a non-circular chassis needs its swept radius.
+- SC-3: blind sectors, minimum sensing range (many ultrasonic and ToF sensors read badly closer than a few cm) and height of obstacles relative to sensor plane.
+Label note: SC-1 to SC-3 are sensor-coverage items local to this document. The labels B1 to B3 belong to docs/37 section 11.1 (25 MHz watchdog timing, unconfigured pin and reset behaviour, independent E-stop and power cutoff) and are used in the same sense in docs/45. They are not used here.
+
+Authority: docs/37 is the authority for the requirement set (SR list, parameter table, blockers, owner input list). Sections 2 and 5 here repeat it for convenience only; if they differ, docs/37 wins. The new content of this document is the stop-distance derivation in section 3.
 
 ## 5. Open inputs needed from the owner (blocking)
 1. Chassis dimensions and shape; wheel and motor choice; mass.
