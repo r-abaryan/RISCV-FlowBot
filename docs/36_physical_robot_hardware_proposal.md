@@ -57,6 +57,14 @@ The current SoC cannot yet drive a real robot. Missing, and to be designed in la
 - Protection: inline fuse, reverse-polarity protection, undervoltage cutoff (Li-ion), bulk capacitor at the driver, and ground star point. Motor current spikes must not reset the FPGA: separate regulators and decoupling.
 - Power budget: not computed. Needs motor stall current, ULX3S draw and sensor draw from datasheets.
 
+## 5a. Raspberry Pi 5 companion computer (clarification, 2026-10-17; NOT selected or purchased)
+
+- **Included in this BOM?** No. The Pi 5 is not in the section 8 table and not in its USD 130 to 350 sum. docs/38 (PR 22) plans a Pi 5 (4GB or 2GB) with a camera for the vision and sensing experiments (its Stage 1) and prices it in GBP (about GBP 173 for Pi, camera, PSU, cooler, SD card). Whether the Pi is part of the robot is an owner decision; if included, add that cost on top of section 8.
+- **Role:** untrusted, advisory only. It may run camera or planning software and send advisory motion requests to the FPGA over a 3.3 V UART. It must not drive motors, clear an E-stop, or disarm. The firmware safety filter, RTL watchdog and physical E-stop stay on the FPGA/hardware side and do not depend on the Pi. The link protocol is a specification only (docs/38 section 8.5); UART RX is NOT implemented in RTL, and PR 24 added only UART TX (simulation evidence only).
+- **Power requirements (not computed, ASSUMED):** the Pi 5 is specified by its maker for a 5 V supply of up to 5 A (27 W official PSU); a robot supply must handle load peaks without a brown-out and must be separate from the motor supply path, or sufficiently isolated and decoupled. The 2 A buck regulator in section 5 is NOT enough for a Pi 5 plus the ULX3S and sensors; a larger 5 V converter (or a separate Pi supply and battery) is needed. Pi 5 pad drive current and the exact figures are unverified: check the Raspberry Pi documentation and a measured power budget before wiring. A Pi brown-out or reboot must not affect safety stop behaviour.
+- **Common ground and levels:** 3.3 V logic UART with a shared ground. The Pi is powered separately, so a ground and level check is required.
+- **Link-loss fail-safe (design intent, values TBD, not implemented):** a command expires after a timeout (200 ms proposed, TBD, must be shorter than the stopping-time budget from docs/37); on expiry the firmware commands zero speed; after a second longer timeout (500 ms proposed, TBD) it requests disarm. Recovery needs several consecutive valid frames and an explicit re-arm from the physical side. Pi crash, reboot, cable pull and hung Pi all appear as no valid frames. A corrupted frame never refreshes the timeout. Independently, the RTL watchdog trips if firmware stops, and the physical E-stop overrides all. Test with a host script and loopback only after approval.
+
 ## 6. Emergency stop and watchdog (design intent)
 
 1. **Physical E-stop:** a mushroom or large push-to-break switch that interrupts the motor power path (battery to driver), normally closed, independent of the FPGA and firmware. This is the primary stop and must work with the FPGA powered off, hung or misprogrammed.
@@ -103,12 +111,14 @@ Rough total: 25 to 30 I/O. Whether that many free header pins exist is UNVERIFIE
 
 Sum of placeholders (excluding the board): roughly 130 to 350 USD depending on the sensor choice. This is an unverified estimate, not a quote.
 
+Currency and scope reconciliation with docs/38: this table is in USD and is robot parts only (no board, no Pi). docs/38 is in GBP and is electronics only (ULX3S, Pi 5, camera, PSU, accessories). The two have never been summed until docs/38 section 10, which converts these lines at 0.7508 GBP per USD (2026-10-17 rate, UNVERIFIED for the actual purchase date) and shows the complete robot does not fit GBP 500 on these placeholders. The E-stop, cutoff and fuse line (USD 15 to 30) is unselected, and no brown-out or undervoltage supervisor is priced here (placeholder GBP 2 to 10 in docs/38). Nothing is selected or purchased.
+
 ## 9. Risks and integration dependencies
 
 - Software gap: R1 to R7 (docs/35). Real sensors differ from the ideal 8-ray sim; the policy may not transfer. Sim-to-real is untested.
 - Margin 40 cm vs 25 cm must be reconciled with measured stopping distance at 0.3 m/s.
 - Side-obstacle stalls (min over all 8 rays): the filter is conservative; a direction-aware filter is not yet tested (hypothesis).
-- Timing: whole-SoC place-and-route at 25 MHz has only about 8 MHz of margin (docs/28); adding I2C, encoders, UART RX may change timing. No bitstream has been made.
+- Timing: the older docs/28 estimate was about 8 MHz of margin at 25 MHz; PR 24 CI (run 39029631056, a42f89a) gives pre-bitstream Fmax estimates of 33.74, 34.74 and 34.77 MHz (see docs/38 section 9); adding I2C, encoders, UART RX may change timing. No bitstream has been made.
 - RTL has no on-FPGA distance check. Hardware E-stop is the only independent stop.
 - Electrical noise from motors; brown-outs; ground loops.
 - Mass/size mismatch with the simulated 0.25 m radius robot.
