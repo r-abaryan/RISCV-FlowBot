@@ -9,7 +9,9 @@
 `include "soc_pkg.sv"
 
 module soc_top #(
-    parameter ROM_INIT_FILE = ""
+    parameter ROM_INIT_FILE = "",
+    // UART clocks per bit (fixed at compile time). 217 ~ 115200 baud @ 25 MHz.
+    parameter UART_CLKS_PER_BIT = 217
 ) (
     input  wire        clk,
     input  wire        rst_n,
@@ -327,7 +329,7 @@ module soc_top #(
         .timer_irq (timer_irq)
     );
 
-    soc_uart u_uart (
+    soc_uart #(.UART_CLKS_PER_BIT(UART_CLKS_PER_BIT)) u_uart (
         .clk      (clk),
         .rst_n    (rst_n),
         .wb_adr_i (uart_adr),
