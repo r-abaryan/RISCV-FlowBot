@@ -1,6 +1,6 @@
 # M8E PR 24: evidence record (documentation only)
 
-Status: record of existing evidence at head a42f89a. No new builds, CI runs or experiments were made for this document. No RTL, firmware or safety logic was changed. Nothing here is board-tested or robot-tested.
+Status: record of existing evidence at head a42f89a. Commit distinction: the tested RTL commit is a42f89a (CI run 39029631056 and the local simulation logs ran at that SHA). The later commit 6304406 added only this documentation file (docs/42); it changed no RTL, firmware or tests, and CI/simulation were NOT re-run at 6304406. The head of the branch after this note is a further documentation-only commit. No new builds, CI runs or experiments were made for this document. No RTL, firmware or safety logic was changed. Nothing here is board-tested or robot-tested.
 
 ## 1. CI synthesis and place-and-route (GitHub Actions run 39029631056, SHA a42f89a)
 
