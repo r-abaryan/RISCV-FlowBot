@@ -93,6 +93,10 @@ static inline void safety_filter_command(
         if (target_v > cap) target_v = (int8_t)cap;
     }
 
+    // M10c: chassis linear velocity is never negative (last operation on v;
+    // stored last_v below is the clamped value). Wheel-level reverse is NOT addressed.
+    if (target_v < 0) target_v = 0;
+
     // Update state
     state->last_v = target_v;
     state->last_w = target_w;

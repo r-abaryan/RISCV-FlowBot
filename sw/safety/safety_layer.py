@@ -93,6 +93,9 @@ class DeterministicSafetyFilter:
         if v_safe > 0.0:
             v_safe = min(v_safe, max(0.0, min_obstacle_dist - self.d_margin) / self.dt)
 
+        # Rule 5 (M10c): chassis linear velocity is never negative (stored v_prev is clamped too)
+        v_safe = max(0.0, v_safe)
+
         # Update historical state
         self.v_prev = v_safe
         self.w_prev = w_safe

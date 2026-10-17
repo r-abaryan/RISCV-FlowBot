@@ -12,6 +12,10 @@
     `define ROM_INIT_FILE "../sw/firmware/robot_nav.hex"
 `endif
 
+// UART divider for simulation speed only (RTL default 217 is exercised by tb_ulx3s_top).
+`ifndef UART_DIV
+`define UART_DIV 16
+`endif
 module tb_soc_nav;
 
     reg clk;
@@ -36,7 +40,8 @@ module tb_soc_nav;
 
     // DUT Instance with configurable ROM
     soc_top #(
-        .ROM_INIT_FILE(`ROM_INIT_FILE)
+        .ROM_INIT_FILE(`ROM_INIT_FILE),
+        .UART_CLKS_PER_BIT(`UART_DIV)
     ) dut (
         .clk             (clk),
         .rst_n           (rst_n),

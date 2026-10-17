@@ -31,6 +31,54 @@ MUT = {   # name -> (old, new, scenario that must detect it)
  'invalid_as_far':   ('addi t4, t4, 127', 'addi t4, t4, 255', 'invalid_sensor'),
  'no_slew':          ('ble  t3, t5, 9f\n    add  s2, t1, t5', 'ble  t3, t5, 9f\n    nop', 'slew_open'),
 }
+# ---- M10c: nonnegative chassis-velocity tests (TEST-ONLY raw-v injection) ----------------------
+# The injection exists only in a generated copy of the assembly built inside a temp dir; production
+# robot_nav_firmware.s / firmware.hex are never modified. It replaces s2 (v_raw) after NNA readback
+# with a per-tick value from INJ[name]; w_raw stays the real policy output.
+INJ = {   # name -> (frames, injected raw v per tick)
+ 'rev_clear':   ([frame(0x64)]*3, (-64, -64, -64)),   # open space, reverse requested: must stay 0
+ 'rev_blocked': ([frame(0x80)]*3, (-64, -64, -64)),   # contact + brake/reverse request: must stay 0
+ 'rev_state':   ([frame(0x64)]*3, (-64, 64, 64)),     # clamped state 0 -> slew 8 -> 16 (pre-clamp state would give 0 -> 8)
+}
+INJ_EXPECT_V = {'rev_clear': (0, 0, 0), 'rev_blocked': (0, 0, 0), 'rev_state': (0, 8, 16)}
+INJ_SRC_OLD = 'sra  s2, s2, 24           /* s2 = v_raw (-128..127) */'
+INJ_ZERO_OLD = '    sw   zero, 4(t0)\n'
+def inject(src, seq):
+    assert src.count(INJ_SRC_OLD) == 1 and src.count(INJ_ZERO_OLD) == 1
+    a, b, c = seq
+    code = (INJ_SRC_OLD + "\n    /* TEST-ONLY raw-v injection */\n    li a1, 0x20003F10\n    lw a2, 0(a1)\n"
+            "    addi a3, a2, 1\n    sw a3, 0(a1)\n    li s2, %d\n    beqz a2, 1f\n    li s2, %d\n"
+            "    li a3, 1\n    beq a2, a3, 1f\n    li s2, %d\n1:\n") % (a, b, c)
+    src = src.replace(INJ_SRC_OLD, code)
+    return src.replace(INJ_ZERO_OLD, INJ_ZERO_OLD + '    sw   zero, 16(t0)\n')
+_DUTY = {duty(x): x for x in range(-128, 128)}
+assert len(_DUTY) == 256            # duty() is injective on -128..127, so PWM decodes exactly
+def decode_v(L, Rr):
+    """Independent of the mirror: recover chassis v from PWM duties (left=v-w, right=v+w)."""
+    xl, xr = _DUTY.get(L), _DUTY.get(Rr)
+    if xl is None or xr is None or (xl + xr) % 2: return None
+    return (xl + xr) // 2
+def check_inj(name, raw, pwm):
+    frames, seq = INJ[name]; errs = []
+    if len(raw) != 3 or len(pwm) != 3: return [f'expected 3 ticks, got raw={len(raw)} pwm={len(pwm)}']
+    st = (0, 0); exp = INJ_EXPECT_V[name]; prev = 0
+    for k, ((w0, w1), (_, rw), (L, Rr)) in enumerate(zip(frames, raw, pwm)):
+        st = f(st, seq[k], s8(rw), dist_cm(w0, w1))
+        eL, eR = duty(st[0]-st[1]), duty(st[0]+st[1])
+        v = decode_v(L, Rr)
+        if (L, Rr) != (eL, eR): errs.append(f'tick{k}: pwm=({L:04x},{Rr:04x}) mirror=({eL:04x},{eR:04x})')
+        if v is None: errs.append(f'tick{k}: PWM not decodable'); continue
+        if v < 0: errs.append(f'tick{k}: decoded chassis v={v} < 0')
+        if v != exp[k]: errs.append(f'tick{k}: decoded v={v} expected {exp[k]}')
+        if st[0] != exp[k]: errs.append(f'tick{k}: mirror v={st[0]} expected {exp[k]}')
+        if abs(v - prev) > 8: errs.append(f'tick{k}: slew violated {prev}->{v}')
+        prev = v
+    return errs
+RMUT = {   # M10c negative controls, applied on top of the fixed firmware; scenario that must detect
+ 'no_clamp':      ('bgez s2, 16f', 'j    16f', 'rev_clear'),
+ 'store_preclamp': ('15: bgez s2, 16f              /* M10c: final linear velocity is never negative */\n    li   s2, 0\n16: sw   s2, 0(t0)            /* last_v = v_safe (already clamped) */',
+                    '15: sw   s2, 0(t0)\n    bgez s2, 16f\n    li   s2, 0\n16:', 'rev_state'),
+}
 def sh(cmd, **k): return subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True, **k)
 def build(src, out):
     d = os.path.dirname(out)
@@ -84,12 +132,26 @@ def setup():
     sh(f'iverilog -I{R}/rtl -DROM_INIT_FILE=\\"{tmp}/fw.hex\\" -o {tmp}/tb.vvp {" ".join(srcs)} {R}/sim/tb_soc_nav.v')
     return tmp, open(FW+'/robot_nav_firmware.s').read()
 def main(args):
-    """args: scen:NAME | mut:NAME | (none = everything; ~50 s of simulation per item)"""
+    """args: scen:NAME | mut:NAME | rev:NAME | revbase:NAME | revmut:NAME | (none = everything; ~50 s of simulation per item)"""
     tmp, base = setup()
     todo = args or ['scen:'+n for n in SCEN] + ['mut:'+n for n in MUT]
     fails = 0
     for a in todo:
         kind, name = a.split(':')
+        if kind in ('rev', 'revbase', 'revmut'):
+            if kind == 'revmut':
+                old, new, scen = RMUT[name]; assert old in base, name
+                src = base.replace(old, new, 1)
+            elif kind == 'revbase':   # pre-fix firmware from BASE_REV (default 082fd98 = main before M10c) (baseline-first proof)
+                scen = name; src = sh(f'cd {R} && git show {os.environ.get("BASE_REV", "082fd98")}:sw/firmware/robot_nav_firmware.s').stdout
+            else:
+                scen = name; src = base
+            raw, pwm = run(tmp, inject(src, INJ[scen][1]), INJ[scen][0])
+            e = check_inj(scen, raw, pwm)
+            ok = (not e) if kind == 'rev' else bool(e)
+            lab = {'rev': 'scenario', 'revbase': 'BASELINE must fail', 'revmut': 'negative control'}[kind]
+            print(f'[{"PASS" if ok else "FAIL"}] {lab} {name} ({scen}): pwm={pwm}', *(e[:3]), flush=True)
+            fails += (not ok); continue
         if kind == 'scen':
             raw, pwm = run(tmp, base, SCEN[name]); e = check(SCEN[name], raw, pwm)
             if not e and not exercised(name, raw): e = ['scenario does not exercise the protection']

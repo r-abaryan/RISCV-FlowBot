@@ -22,7 +22,7 @@ RTL_SRCS = \
 	$(ROOT_DIR)/rtl/cpu/picorv32.v \
 	$(ROOT_DIR)/rtl/soc_top.v
 
-.PHONY: test_rl_nna test_safety_hw all sim firmware test_py test_nna_corners test_nna test_safety test_soc test_nav test_nna_corners_sim test_safety_adv test_trained_nna test_quant test_cosim synth_check clean
+.PHONY: test_rl_nna test_safety_hw all sim firmware test_py test_nna_corners test_nna test_safety test_soc test_nav test_nna_corners_sim test_safety_adv test_trained_nna test_quant test_cosim test_uart test_ulx3s_top synth_check clean
 
 all: test_py test_nna_corners test_quant test_rtl test_trained_nna test_rl_nna test_nav
 
@@ -152,7 +152,20 @@ test_cosim: firmware
 		-o $(ROOT_DIR)/sim/tb_soc_cosim.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_cosim.v
 	$(PYTHON) $(ROOT_DIR)/sim/soc_closed_loop_cosim.py --steps 10 --episodes 1
 
-test_rtl: test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc
+test_rtl: test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc test_uart
+
+# D-B UART unit test (divider 8)
+test_uart:
+	@echo "--- Running UART unit testbench (divider 8) ---"
+	$(IVERILOG) -g2012 -o $(ROOT_DIR)/sim/tb_soc_uart.vvp $(ROOT_DIR)/rtl/periph/soc_uart.v $(ROOT_DIR)/sim/tb_soc_uart.v
+	$(VVP) $(ROOT_DIR)/sim/tb_soc_uart.vvp | tee $(ROOT_DIR)/sim/tb_soc_uart.log
+	@grep -q "TB_SOC_UART PASS" $(ROOT_DIR)/sim/tb_soc_uart.log
+
+# ULX3S wrapper pin-decode test (slow, ~minutes; not in test_rtl). Run from repo root cwd.
+test_ulx3s_top:
+	cd $(ROOT_DIR) && $(IVERILOG) -g2012 -I rtl -o sim/tb_ulx3s_top.vvp $(RTL_SRCS) fpga/ulx3s/ulx3s_top.v sim/tb_ulx3s_top.v
+	cd $(ROOT_DIR) && $(VVP) sim/tb_ulx3s_top.vvp | tee sim/tb_ulx3s_top.log
+	@grep -q "fails=0" $(ROOT_DIR)/sim/tb_ulx3s_top.log
 
 synth_check:
 	@echo "--- Running Yosys RTL Syntax & Elaboration Check ---"

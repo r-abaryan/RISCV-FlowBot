@@ -19,13 +19,30 @@ _start:
     li s3, 0x50000200   /* PWM_BASE */
     li s4, 0x20000000   /* RAM_BASE */
 
-    /* 3. Send UART Startup Banner ('S', 'o', 'C', '\n') */
+    /* 3. Send UART Startup Banner ('S', 'o', 'C', '\n').
+       Poll STATUS (0x08) bit 0 TX_BUSY before every byte: a write while busy is dropped. */
+banner_wait0:
+    lw t1, 0x08(s2)
+    andi t1, t1, 1
+    bnez t1, banner_wait0
     li t0, 0x53         /* 'S' */
     sw t0, 0(s2)
+banner_wait1:
+    lw t1, 0x08(s2)
+    andi t1, t1, 1
+    bnez t1, banner_wait1
     li t0, 0x6F         /* 'o' */
     sw t0, 0(s2)
+banner_wait2:
+    lw t1, 0x08(s2)
+    andi t1, t1, 1
+    bnez t1, banner_wait2
     li t0, 0x43         /* 'C' */
     sw t0, 0(s2)
+banner_wait3:
+    lw t1, 0x08(s2)
+    andi t1, t1, 1
+    bnez t1, banner_wait3
     li t0, 0x0A         /* '\n' */
     sw t0, 0(s2)
 
