@@ -3,11 +3,12 @@
 Status: documentation only. No tests were rerun to write this record. No RTL, firmware or safety logic was changed. This is not a hardware-readiness claim.
 
 ## Tested commit
+- This document is committed on a documentation branch on top of main; the documentation commit SHA is NOT the tested SHA. Tests ran on main a6fb987 only, with no code differences from the documentation commit.
 - main a6fb98766b512545308d5cf4f68d98095fba2c9f (merge of PR 25, M10c nonnegative velocity). All evidence below applies to this SHA, except where marked as previously reported.
 - Environment: sandbox with iverilog, make, numpy, riscv-none-elf binutils. Level: SIMULATED (iverilog RTL simulation of soc_top; Python/C mirrors). Not synthesized, routed, board-tested or robot-tested.
 
 ## 1. Assembly / SoC parity: test_nav_boundaries default suite
-Command, once per item: `cd sw/test && python3 test_nav_boundaries.py <kind:name>`. Logs in the session sandbox at /workspace/m10b_logs/ (not committed; the sandbox can be reset).
+Command, once per item: `cd sw/test && python3 test_nav_boundaries.py <kind:name>`. Logs are archived in `docs/evidence/m10b_nav_boundaries_logs.tar.gz` (sha256 in the adjacent `.sha256` file: 767002aee17f7f647e7be0521afaaf18fa7111a1d71aadb53b14c19ae4e4a204). Each log holds the test output line, RESULT and rc/secs; no secrets or machine paths. Verify with `sha256sum -c`.
 
 | Item | Result | Time |
 |---|---|---|
