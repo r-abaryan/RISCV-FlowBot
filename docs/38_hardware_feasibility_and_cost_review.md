@@ -201,6 +201,8 @@ UK VAT, duty and handling fee terms (A3); exact included cable length; second 85
 
 ## 9. Verified synthesis and timing figures (PR 24, 2026-10-17 update)
 
+Status note: PR 24 is merged into main (earlier text in this and other documents calling it open is stale). Fmax comparison: the README and docs/28 routed estimate of 32.93 to 33.00 MHz is for the earlier flat soc_top build; the 33.74 to 34.77 MHz figures below are for the PR 24 build, which includes the UART TX. They are different builds, not a contradiction. Both are pre-bitstream nextpnr estimates, with no board test.
+
 Source: CI run 39029631056 at RTL commit a42f89a (branch flowbot/m8e-uart-tx-db). A later documentation-only commit 6304406 (docs/42) changed no RTL. These are CI synthesis (Yosys) counts and nextpnr timing estimates. They are NOT a bitstream, NOT board-tested. The figures below are as supplied by the owner and recorded in docs/42; I did not re-read the CI artifacts.
 
 | Resource | Count | Note |
@@ -241,4 +243,4 @@ Robot parts subtotal (ToF case): about GBP 97 to 250. With LiDAR instead of ToF:
 | High (ToF) | 514 | 250 | about 764 | about 840 |
 | High (LiDAR) | 514 | 318 | about 832 | about 915 |
 
-Conclusion: on these unverified numbers the complete robot does NOT fit GBP 500, even with the low case and no contingency. The shortfall is roughly GBP 55 to 330 before contingency. I have not forced the budget under GBP 500. Options for the owner (not decided): raise the ceiling, phase the build (electronics first, as 8.6 Stage 1 and 2), or reduce scope. The E-stop, cutoff and brown-out lines are safety items and must not be dropped to save money. Pi 5 2GB saves about GBP 31 only if T1 allows. Currencies: docs/36 USD and this document GBP are now reconciled at the 0.7508 rate above; VAT, courier fee and exchange margin remain UNVERIFIED.
+Conclusion (placeholder prices, not quotes): on these unverified numbers the complete robot does NOT fit GBP 500, even with the low case and no contingency. The shortfall is roughly GBP 55 to 330 before contingency. I have not forced the budget under GBP 500. Options for the owner (not decided): raise the ceiling, phase the build (electronics first, as 8.6 Stage 1 and 2), or reduce scope. The E-stop, cutoff and brown-out lines are safety items and must not be dropped to save money. Pi 5 2GB saves about GBP 31 only if T1 allows. Currencies: docs/36 USD and this document GBP are now reconciled at the 0.7508 rate above; VAT, courier fee and exchange margin remain UNVERIFIED.
