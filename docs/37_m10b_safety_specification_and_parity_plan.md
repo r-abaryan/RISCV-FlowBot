@@ -157,14 +157,39 @@ Status: draft requirements derived from a documentation review. No RTL, firmware
 **B1. 25 MHz watchdog timing discrepancy (BLOCKING for P9 and P10 evidence).** RTL comments assume 50 MHz. The ULX3S wrapper feeds the 25 MHz board clock without a PLL (not measured on a board). At 25 MHz the reset default of 2,500,000 cycles is 100 ms (comment says 50 ms), and the firmware value of 500,000 cycles is 20 ms (comment says 10 ms). Requirement: t_wd must be stated in seconds against the verified clock, carried into P9/P10 and into S3 to S5 as a gating parameter, and rechecked against the control period and braking distance. The estimated Fmax margin at 25 MHz versus 33 MHz (docs/28) must be considered when the clock choice is made. Until U5 is closed, no watchdog-time claim may be made.
 **B2. Unconfigured-pin and reset-state behaviour (BLOCKING before any motor is connected).** FPGA pins are undefined or weakly pulled while unconfigured, during configuration and in reset. Requirement: the motor driver must default to off through external pull resistors (or an equivalent hardware gate), independent of FPGA state; this must be shown by schematic review and a bench measurement of the driver enable and PWM inputs during power-up, reconfiguration and reset. Not designed, not tested.
 
+**B3. Independent hardware E-stop, motor-power cutoff and brown-out (BLOCKING before any physical motion, including wheels-off-ground tests with a powered motor supply).**
+- B3a. A physical, accessible, latching E-stop must remove motor POWER (series contactor or relay, or an equivalent power-path cut) with no dependence on the FPGA, firmware, the neural policy or the RTL watchdog. The RTL `actuator_disarm` is a second, independent layer, not a substitute.
+- B3b. The motor-power cutoff must be fail-safe: loss of the control signal, a broken wire or a de-energised coil must leave motor power off.
+- B3c. Brown-out, logic-supply sag and FPGA reconfiguration must leave motors off, by hardware (supervisor or pull-downs), not by firmware. Motor-supply sag must not reset or corrupt the logic supply unnoticed.
+- B3d. Evidence required before closure: schematic review plus a bench measurement (motors disconnected or wheels lifted) of E-stop-to-power-off, power-up, brown-out and reconfiguration. Not designed, not purchased, not tested. Docs/36 and docs/38 do not yet fix a circuit for this.
+
 ### 11.2 Further requirements (R) and blocking items (U)
 - R-E1: E-stop pin input needs a synchroniser and a debounce or glitch-filter policy. Disarm today is combinational from an unsynchronised pin; the P10 "within one clock" wording must state what is meant for an asynchronous input. The ULX3S switch polarity is unverified and is a bring-up placeholder, not an E-stop.
 - R-W1: The required reset state of the watchdog must be stated. `reg_enable` resets to 1 and is software writable; require who may disable it and that a firmware which never enables or services it still ends in a disarmed state. A disarm write is the safe direction, but the requirement must be explicit.
 - R-W2: Clock loss: the watchdog uses the clock it monitors, so a stopped clock disables it. Require an independent hardware check (or external supervisor), or record it as an accepted risk with owner sign-off.
-- R-P1: Power loss, brown-out and FPGA reconfiguration must result in motors off, plus an independent hardware E-stop that cuts motor power without the FPGA.
+- R-P1: see B3 (promoted to a prominent blocker).
 - U8 (blocking before physical motion): P3 forbids reverse, but the current filters let reverse pass and the policy can command it. The requirement is that reverse is clamped at the deterministic filter, not left to the policy.
 - R-S1: Sensor timeout and stuck-sensor detection (P8) need a sensor model; define minimum-range behaviour (reads 0 or max) and the meaning of a "valid" sample for P11. The Q7 4 m scale is a simulation assumption.
 - R-S2: Define the angular width of the forward sector used for the minimum in P1/P4; the existing filter model takes one scalar.
 - U3 addendum: the simulation a_brake of 1.5 m/s^2 is unmeasured; P5 leaves safety changes unbounded until a_brake is known.
 - R-V1: Python, firmware and image version identification and a build-hash check, so the tested image equals the deployed image.
 - R-U1: The UART console must not influence actuation or the safety path, and a UART busy or overrun state must not delay the heartbeat or the safety filter. (The D-B UART in PR 24 drops a write while busy instead of stalling the bus; simulation only, and the heartbeat timing with the real 217-clock divider is not measured.)
+
+### 11.3 Coverage of the 15 findings in docs/41 section F
+| docs/41 finding | Covered by |
+|---|---|
+| 1 effort sum | no change needed (reviewer found it consistent) |
+| 2 25 MHz watchdog time | B1 |
+| 3 E-stop synchroniser/debounce | R-E1 |
+| 4 watchdog reset state | R-W1 |
+| 5 unconfigured pins | B2 |
+| 6 reverse | U8 |
+| 7 sensor timeout/min range | R-S1 |
+| 8 definition of valid sample | R-S1 |
+| 9 braking bound | U3 addendum |
+| 10 forward sector width | R-S2 |
+| 11 build hash | R-V1 |
+| 12 power loss/brown-out/independent E-stop | B3 (was only R-P1) |
+| 13 UART not in safety path | R-U1 |
+| 14 clock loss | R-W2 |
+| 15 U7 consistent | no change needed |
