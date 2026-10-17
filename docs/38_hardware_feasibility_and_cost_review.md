@@ -23,7 +23,7 @@ Labels: VERIFIED (read from a vendor page or repo file this session), UNVERIFIED
 
 Conclusion: ULX3S 85F is the only candidate whose pins, package and constraints already exist in the repo and whose price and stock I could read. I could not verify a second 85F board's UK price. Treat the alternatives as TBD, not as comparison results. A genuine comparison needs the owner to open the blocked supplier pages, or to say which alternative to price.
 
-Lower-cost trade-off: a ULX3S 45F would hold this design on paper (M8C routed 12,183 of 83,640 LUT4, about 14 percent; 45F has about 44k LUT, UNVERIFIED fit) but the Crowd Supply page lists only 12F (USD 155, pre-order, ships Dec 15 2026) and 85F. The 12F (about 12k LUT) does NOT fit: 12,183 combinational cells already exceed it (INCOMPATIBLE by M8C numbers). The owner's stated target is 85F, so keep it.
+Lower-cost trade-off: a ULX3S 45F would hold this design on paper (older M8C figure 12,183 LUT4 of 83,640, about 14 percent, superseded by section 9; 45F has about 44k LUT, UNVERIFIED fit) but the Crowd Supply page lists only 12F (USD 155, pre-order, ships Dec 15 2026) and 85F. The 12F (about 12k LUT) does NOT fit: 12,183 combinational cells already exceed it (INCOMPATIBLE by M8C numbers). The owner's stated target is 85F, so keep it.
 
 ## 2. Realistic cost estimate
 
@@ -55,7 +55,7 @@ Each test is hardware, so each is "board-tested" only after it actually runs. No
 |---|---|---|---|
 | T1 Camera inference on Pi 5 | Pi, camera, cable, PSU | rpicam-hello detects the camera; a fixed set of N=50 stored test images yields reproducible top-1 labels on two runs; measured frames per second and latency recorded with the exact model name | camera not detected; results not reproducible; model fps below the value the owner sets (TBD, none set) |
 | T2 Pi-to-FPGA link | Pi 5 GPIO UART or SPI, ULX3S GPIO header, common ground, 3.3 V logic (both sides 3.3 V, VERIFIED for ULX3S header banks, jumper selectable 3.3 or 2.5 V, so check the jumper) | 10,000 bytes at an agreed baud rate loop back with 0 errors; command frame rejected when CRC or length is wrong; link loss for longer than a timeout makes the FPGA side go to the stopped state (needs a defined firmware or RTL feature that DOES NOT exist yet) | any byte error; no timeout behaviour |
-| T3 SoC bring-up on ULX3S | board, USB cable | bitstream loads via openFPGALoader; LED heartbeat at expected rate; the UART banner decoded by the host equals the firmware banner string (the UART TX was merged in PR 17, simulated only) | no banner, wrong characters, or timing not met at 25 MHz (M8C routed Fmax was 32.9 to 33.0 MHz on 3 seeds, a pre-bitstream estimate) |
+| T3 SoC bring-up on ULX3S | board, USB cable | bitstream loads via openFPGALoader; LED heartbeat at expected rate; the UART banner decoded by the host equals the firmware banner string (the UART TX was merged in PR 17, simulated only) | no banner, wrong characters, or timing not met at 25 MHz (earlier M8C pre-bitstream Fmax estimate was 32.9 to 33.0 MHz; PR 24 estimates are 33.74, 34.74 and 34.77 MHz, see section 9) |
 | T4 Motor-control outputs, motors DISCONNECTED | logic analyser or scope | PWM pin shows the commanded duty at 0, 25, 50, 100 percent within the tolerance TBD; actuator_disarm and E-stop force both outputs low within a measured time; watchdog stop when firmware halts | any output active while disarmed, or stop time above the safety-spec bound (TBD in docs/37 and not approved) |
 
 Known gap blocking T4: in fpga/ulx3s/ulx3s_85f.lpf only clock, UART RX, one button, one switch and eight LEDs have pins. The PWM and disarm outputs have no pin assignments (VERIFIED in repo). The pins are copied from emard's constraints and were not checked against a schematic. Adding them changes the wrapper, which is out of scope here and needs approval.
@@ -67,7 +67,7 @@ Known gap blocking T4: in fpga/ulx3s/ulx3s_85f.lpf only clock, UART RX, one butt
 | A1 | ULX3S 85F is LFE5U-85F-6BG381C, 84k LUT, 56 GPIO, 25 MHz clock | VERIFIED (Crowd Supply page) |
 | A2 | ULX3S 85F in stock at USD 275 plus USD 18 shipping | VERIFIED 2026-10-17; may change |
 | A3 | UK delivered price GBP 270 to 285 | UNVERIFIED. Rebuilt in section 8 from the 2026-10-17 exchange rate (0.7508 GBP per USD, open.er-api.com); VAT and courier fee rules could not be fetched from gov.uk, so the VAT and fee terms stay UNVERIFIED |
-| A4 | The SoC fits the 85F and routes at 25 MHz | Routed in simulation of PnR (nextpnr, 3 seeds, 14 percent comb LUT, margin about 8 MHz). Not board-tested |
+| A4 | The SoC fits the 85F and routes at 25 MHz | Synthesised in CI and given a pre-bitstream nextpnr timing estimate (not a routed, bitstream-proven or board-tested result). Current figures are in section 9 (PR 24, run 39029631056 at a42f89a). Older M8C figures (about 12k LUT, 32.9 to 33.0 MHz, 14 percent) predate the UART TX and use a different counting basis, so they are superseded |
 | A5 | Pins in ulx3s_85f.lpf are right | UNVERIFIED (copied, not schematic checked) |
 | A6 | Pi 5 4GB GBP 105.60, Camera Module 3 GBP 24, PSU GBP 11.50, cooler GBP 4.80 | VERIFIED (Pi Hut listing) |
 | A7 | Pi 5 needs the Standard-to-Mini camera cable (15-pin camera end, 22-pin Pi 5 end) | VERIFIED on the Pi Hut pages 2026-10-17. Camera Module 3 Standard lists both cables in the box (length not stated); Wide does not. Separate cable: Pi Hut 'Camera Adapter Cable for Raspberry Pi 5', 200mm SC1128, listed price 90 in the shop data (read as GBP 0.90, to confirm on the page), in stock |
@@ -84,7 +84,7 @@ Known gap blocking T4: in fpga/ulx3s/ulx3s_85f.lpf only clock, UART RX, one butt
 
 1. Budget: the ULX3S import VAT and exchange rate can consume the whole contingency.
 2. Output pins missing: motor-control outputs have no constraints, so T4 cannot run until an approved wrapper change exists.
-3. Timing margin: routed Fmax is about 33 MHz versus a 25 MHz clock, estimate only, and the M8C numbers were taken before the UART TX was added to the flat design (re-run needed).
+3. Timing margin: the pre-bitstream Fmax estimate is about 33.7 to 34.8 MHz versus a 25 MHz clock (section 9, includes the UART TX); this is an estimate only, no bitstream exists.
 4. Link-loss behaviour between Pi and FPGA is not specified or implemented. The Pi must be treated as an untrusted advisory source; the safety filter and watchdog stay on the FPGA side.
 5. Camera cable and connector mismatch on Pi 5 (A7).
 6. Crowd Supply is a US shipper; customs delay and returns for a faulty board are slower than a UK reseller.
@@ -122,7 +122,7 @@ Evidence labels: VERIFIED means read from a vendor or project page on 2026-10-17
 | Availability | In stock, Crowd Supply (VERIFIED) | DISCONTINUED, variants unavailable on 1BitSquared (VERIFIED) |
 | List price | USD 275 plus USD 18 shipping | USD 178 (not purchasable) |
 | User I/O | 56 GPIO on two 40-pin headers, 3.3 V | Feather-style, about 13 numbered GPIO plus 4 analog-pin GPIO in the r0.2.1 docs (my count of the pinout table) |
-| Fit for this SoC | LUT headroom; M8C routed about 12k LUT | Same FPGA size; I/O too few for motors, encoders, sensors and Pi link |
+| Fit for this SoC | LUT headroom; older M8C estimate about 12k LUT; PR 24 synthesis gives LUT4 8710 (section 9) | Same FPGA size; I/O too few for motors, encoders, sensors and Pi link |
 | UK price | Not found; estimate in 8.3 | TBD, stop as instructed |
 
 Recommendation: ULX3S 85F. The only alternative checked is discontinued and has far fewer pins. Versa board unpriced (TBD). ULX3S 12F stays INCOMPATIBLE.
@@ -197,4 +197,48 @@ Principle: the Pi is an untrusted advisory source. The firmware safety filter, R
 
 ### 8.7 Still unresolved
 
-UK VAT, duty and handling fee terms (A3); exact included cable length; second 85F board prices; schematic check of pin allocation; Pi 5 pad drive current; Fmax after the UART TX addition (re-run synthesis needed); sensor type and count.
+UK VAT, duty and handling fee terms (A3); exact included cable length; second 85F board prices; schematic check of pin allocation; Pi 5 pad drive current; Fmax after the UART TX addition is now estimated in section 9 (pre-bitstream only); full-robot cost items in section 10 are unverified; sensor type and count.
+
+## 9. Verified synthesis and timing figures (PR 24, 2026-10-17 update)
+
+Source: CI run 39029631056 at RTL commit a42f89a (branch flowbot/m8e-uart-tx-db). A later documentation-only commit 6304406 (docs/42) changed no RTL. These are CI synthesis (Yosys) counts and nextpnr timing estimates. They are NOT a bitstream, NOT board-tested. The figures below are as supplied by the owner and recorded in docs/42; I did not re-read the CI artifacts.
+
+| Resource | Count | Note |
+|---|---|---|
+| LUT4 | 8710 | synthesis count |
+| FF (TRELLIS_FF) | 2692 | |
+| BRAM (DP16KD) | 38 | |
+| DSP (MULT18X18D) | 12 | |
+| CCU2C (carry) | 586 | reported by synthesis |
+
+Pre-bitstream Fmax estimates (nextpnr, three runs) against the 25 MHz constraint: 33.74, 34.74 and 34.77 MHz. This is a pre-bitstream estimate: wording such as "routed in simulation of PnR" in older text should be read as this. It says nothing about I/O timing, board behaviour or timing after adding I2C, encoder, direction or UART RX logic.
+
+## 10. Complete robot cost (GBP ranges, planning only, nothing selected or bought)
+
+The earlier table (section 8.3) covers electronics only. The full robot adds the parts below. Prices for these lines are UNVERIFIED placeholders taken from docs/36 (USD), converted at 0.7508 GBP per USD (open.er-api.com, 2026-10-17, as in 8.3), rounded. docs/36 and this document were previously never summed.
+
+| Line | USD (docs/36) | GBP range | Status |
+|---|---|---|---|
+| Chassis plates, standoffs | 15 to 40 | 11 to 30 | UNVERIFIED, not selected |
+| Gearmotors with encoders (2) | 20 to 60 | 15 to 45 | UNVERIFIED, not selected |
+| Wheels and ball caster | 8 to 18 | 6 to 14 | UNVERIFIED |
+| Motor driver | 5 to 20 | 4 to 15 | UNVERIFIED, not selected |
+| Battery and charger | 20 to 40 | 15 to 30 | UNVERIFIED, not selected |
+| 5 V buck regulator (and Pi 5 supply path, see docs/36 section 5a) | 5 to 10 | 4 to 8 | UNVERIFIED; Pi 5 needs a robust 5 V supply, may need a larger converter |
+| Range sensors, ToF array (7 to 9) | 20 to 60 | 15 to 45 | UNVERIFIED, sensor type undecided |
+| (alternative) LiDAR instead of ToF | 80 to 150 | 60 to 113 | UNVERIFIED |
+| IMU | 3 to 15 | 2 to 11 | UNVERIFIED |
+| Bumper switches | 5 | 4 | UNVERIFIED |
+| Independent physical E-stop, battery cutoff (relay or MOSFET), fuse, wiring | 15 to 30 | 11 to 23 | UNVERIFIED, not selected; required by the safety requirements |
+| Brown-out / undervoltage supervisor | not priced in docs/36 | 2 to 10 | PLACEHOLDER by me, no part chosen |
+| Level shifters, connectors, perfboard | 10 to 20 | 8 to 15 | UNVERIFIED; may overlap the 15 to 45 accessories line in 8.3 |
+
+Robot parts subtotal (ToF case): about GBP 97 to 250. With LiDAR instead of ToF: about GBP 142 to 318. These use rounded line values and may double count accessories.
+
+| Case | Electronics (8.3 subtotal) | Robot parts | Total before contingency | With 10 percent contingency |
+|---|---|---|---|---|
+| Low (ToF) | 458 | 97 | about 555 | about 610 |
+| High (ToF) | 514 | 250 | about 764 | about 840 |
+| High (LiDAR) | 514 | 318 | about 832 | about 915 |
+
+Conclusion: on these unverified numbers the complete robot does NOT fit GBP 500, even with the low case and no contingency. The shortfall is roughly GBP 55 to 330 before contingency. I have not forced the budget under GBP 500. Options for the owner (not decided): raise the ceiling, phase the build (electronics first, as 8.6 Stage 1 and 2), or reduce scope. The E-stop, cutoff and brown-out lines are safety items and must not be dropped to save money. Pi 5 2GB saves about GBP 31 only if T1 allows. Currencies: docs/36 USD and this document GBP are now reconciled at the 0.7508 rate above; VAT, courier fee and exchange margin remain UNVERIFIED.
