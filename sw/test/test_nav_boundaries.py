@@ -142,8 +142,8 @@ def main(args):
             if kind == 'revmut':
                 old, new, scen = RMUT[name]; assert old in base, name
                 src = base.replace(old, new, 1)
-            elif kind == 'revbase':   # pre-fix firmware from git HEAD (baseline-first proof)
-                scen = name; src = sh(f'cd {R} && git show HEAD:sw/firmware/robot_nav_firmware.s').stdout
+            elif kind == 'revbase':   # pre-fix firmware from BASE_REV (default 082fd98 = main before M10c) (baseline-first proof)
+                scen = name; src = sh(f'cd {R} && git show {os.environ.get("BASE_REV", "082fd98")}:sw/firmware/robot_nav_firmware.s').stdout
             else:
                 scen = name; src = base
             raw, pwm = run(tmp, inject(src, INJ[scen][1]), INJ[scen][0])
