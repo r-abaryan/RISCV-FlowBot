@@ -173,7 +173,7 @@ Status: draft requirements derived from a documentation review. No RTL, firmware
 - R-S2: Define the angular width of the forward sector used for the minimum in P1/P4; the existing filter model takes one scalar.
 - U3 addendum: the simulation a_brake of 1.5 m/s^2 is unmeasured; P5 leaves safety changes unbounded until a_brake is known.
 - R-V1: Python, firmware and image version identification and a build-hash check, so the tested image equals the deployed image.
-- R-U1: The UART console must not influence actuation or the safety path, and a UART busy or overrun state must not delay the heartbeat or the safety filter. (The D-B UART in PR 24 drops a write while busy instead of stalling the bus; simulation only, and the heartbeat timing with the real 217-clock divider is not measured.)
+- R-U1: The UART console must not influence actuation or the safety path, and a UART busy or overrun state must not delay the heartbeat or the safety filter. (The D-B UART in PR 24 (now merged into main) drops a write while busy instead of stalling the bus; simulation only, and the heartbeat timing with the real 217-clock divider is not measured.)
 
 ### 11.3 Coverage of the 15 findings in docs/41 section F
 | docs/41 finding | Covered by |
