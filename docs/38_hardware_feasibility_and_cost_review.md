@@ -66,16 +66,16 @@ Known gap blocking T4: in fpga/ulx3s/ulx3s_85f.lpf only clock, UART RX, one butt
 |---|---|---|
 | A1 | ULX3S 85F is LFE5U-85F-6BG381C, 84k LUT, 56 GPIO, 25 MHz clock | VERIFIED (Crowd Supply page) |
 | A2 | ULX3S 85F in stock at USD 275 plus USD 18 shipping | VERIFIED 2026-10-17; may change |
-| A3 | UK delivered price GBP 270 to 285 | UNVERIFIED |
+| A3 | UK delivered price GBP 270 to 285 | UNVERIFIED. Rebuilt in section 8 from the 2026-10-17 exchange rate (0.7508 GBP per USD, open.er-api.com); VAT and courier fee rules could not be fetched from gov.uk, so the VAT and fee terms stay UNVERIFIED |
 | A4 | The SoC fits the 85F and routes at 25 MHz | Routed in simulation of PnR (nextpnr, 3 seeds, 14 percent comb LUT, margin about 8 MHz). Not board-tested |
 | A5 | Pins in ulx3s_85f.lpf are right | UNVERIFIED (copied, not schematic checked) |
 | A6 | Pi 5 4GB GBP 105.60, Camera Module 3 GBP 24, PSU GBP 11.50, cooler GBP 4.80 | VERIFIED (Pi Hut listing) |
-| A7 | Pi 5 needs the mini (22-pin) camera cable, not the 15-pin one that ships with older cameras | UNVERIFIED, confirm on the Pi Hut product page before ordering |
-| A8 | Pi 5 and ULX3S GPIO are both 3.3 V so no level shifter is needed | UNVERIFIED for the Pi side (not looked up this session); ULX3S bank voltage VERIFIED |
+| A7 | Pi 5 needs the Standard-to-Mini camera cable (15-pin camera end, 22-pin Pi 5 end) | VERIFIED on the Pi Hut pages 2026-10-17. Camera Module 3 Standard lists both cables in the box (length not stated); Wide does not. Separate cable: Pi Hut 'Camera Adapter Cable for Raspberry Pi 5', 200mm SC1128, listed price 90 in the shop data (read as GBP 0.90, to confirm on the page), in stock |
+| A8 | Pi 5 and ULX3S GPIO are both 3.3 V | VERIFIED for logic levels: Raspberry Pi documentation (GPIO pins are 3.3 V, inputs 3.3 V tolerant) and the ULX3S manual (GPIO 3.3 V, not 5 V tolerant). 5 V sensors or motor drivers DO need level shifting. Pi 5 pad drive current not checked |
 | A9 | ULX3S GPIO headers are fitted | UNVERIFIED (the listing does not say, may need soldering or header pins) |
 | A10 | openFPGALoader programs the ULX3S over the FT231X | UNVERIFIED here (widely reported, not checked), test on arrival |
 | A11 | 12F ULX3S can hold this SoC | INCOMPATIBLE by M8C counts |
-| A12 | A second 85F board has a UK price and stock | TBD (suppliers blocked) |
+| A12 | A second 85F board has a UK price and stock | OrangeCrab 85F: listed USD 178 on 1BitSquared but the page is marked Discontinued and the variants show unavailable (2026-10-17). No UK price. Not a purchasable alternative. Lattice Versa board not priced (TBD) |
 | A13 | Pi 5 2GB is enough for the chosen vision model | TBD (decided by T1) |
 | A14 | The first prototype safety limits | TBD, owner approval (docs/37, PR 21) |
 | A15 | Large RL training stays paused and virtual experiments do not change the baseline | CONFIRMED by owner instruction |
@@ -104,8 +104,97 @@ Exact order lines:
 - Active Cooler for Raspberry Pi 5, https://thepihut.com/products/active-cooler-for-raspberry-pi-5
 - Raspberry Pi Micro SD with OS, 32GB, listed at Pi Hut (choose in the SD card collection)
 - ULX3S with ECP5 85F, https://www.crowdsupply.com/radiona/ulx3s
-- Pi 5 camera cable: SKU not confirmed, owner or I should confirm before ordering (A7)
+- Pi 5 camera cable: included with Camera Module 3 Standard per Pi Hut; if a known 200 mm bench length is wanted, add Pi Hut Camera Adapter Cable for Raspberry Pi 5, 200mm, SKU SC1128 (A7)
 
 ## 7. Not done
 
-No second 85F UK price. No board schematic check. No exchange rate source. No Pi 5 GPIO voltage check. No tool run. No change to RTL, firmware, constraints or CI.
+No UK price for any second 85F board. No board schematic check (pin data below comes from the ULX3S manual and emard constraints file, not schematics). No gov.uk VAT rule text. No Pi 5 pad drive current check. No tool run. No change to RTL, firmware, constraints or CI.
+
+## 8. Update 2026-10-17 after owner decisions (planning only)
+
+Evidence labels: VERIFIED means read from a vendor or project page on 2026-10-17. UNVERIFIED means estimate. Nothing here is board-tested.
+
+### 8.1 Board comparison and recommendation
+
+| Item | ULX3S 85F | OrangeCrab 85F |
+|---|---|---|
+| FPGA | LFE5U-85F, 84k LUT (VERIFIED) | LFE5U-85F (listed as 85F variant) |
+| Availability | In stock, Crowd Supply (VERIFIED) | DISCONTINUED, variants unavailable on 1BitSquared (VERIFIED) |
+| List price | USD 275 plus USD 18 shipping | USD 178 (not purchasable) |
+| User I/O | 56 GPIO on two 40-pin headers, 3.3 V | Feather-style, about 13 numbered GPIO plus 4 analog-pin GPIO in the r0.2.1 docs (my count of the pinout table) |
+| Fit for this SoC | LUT headroom; M8C routed about 12k LUT | Same FPGA size; I/O too few for motors, encoders, sensors and Pi link |
+| UK price | Not found; estimate in 8.3 | TBD, stop as instructed |
+
+Recommendation: ULX3S 85F. The only alternative checked is discontinued and has far fewer pins. Versa board unpriced (TBD). ULX3S 12F stays INCOMPATIBLE.
+
+### 8.2 Camera
+
+Camera Module 3 Standard (Pi Hut SKU SC1223, GBP 24): the product page says it ships with both the 15-pin and the 22-pin Pi 5/Zero cables. Wide-angle does not include the Pi 5 cable. Cable length in the box is not stated. For a known 200 mm bench length order SC1128 (GBP 0.90, listed price 90 in shop data; confirm on page).
+
+### 8.3 Delivered cost and budget (GBP, electronics prototype only: no chassis, motors or battery)
+
+Assumptions: USD to GBP 0.7508 (open.er-api.com, 2026-10-17). Import VAT 20 percent on goods plus shipping, plus a courier handling fee of GBP 8 to 15: both UNVERIFIED (gov.uk page could not be read). Customs duty assumed zero: UNVERIFIED. Pi Hut prices assumed to include UK VAT: UNVERIFIED.
+
+ULX3S: USD 293 x 0.7508 = GBP 220.0; with 20 percent VAT 264.0; with fee 272 to 279. Add 3 to 5 percent card or exchange margin: about 280 to 293. Range for planning: GBP 270 to 295.
+
+| Line | Low | Central | High |
+|---|---|---|---|
+| Pi 5 4GB, camera, PSU, cooler, SD card (105.60 + 24 + 11.50 + 4.80 + 27.50) | 173.40 | 173.40 | 173.40 |
+| Camera cable SC1128 (optional) | 0 | 0.90 | 0.90 |
+| ULX3S 85F delivered | 270 | 280 | 295 |
+| Headers, wires, level shifters, logic analyser, USB cables | 15 | 30 | 45 |
+| Subtotal | 458 | 484 | 514 |
+| Contingency 10 percent | 46 | 48 | 51 |
+| Total | 504 | 532 | 565 |
+
+Result: with a meaningful 10 percent contingency the plan EXCEEDS GBP 500 by about 4 to 65 pounds. Pi 5 2GB saves about GBP 31 (T1 decides), which gives central total about 501. The 500 ceiling holds only if the ULX3S arrives near the low estimate or the owner treats part of the contingency as outside the ceiling.
+
+### 8.4 Proposed FPGA pin allocation (PROPOSAL, no RTL or constraint change made)
+
+Source: ULX3S manual and emard ulx3s_v20.lpf (PCB v2.x and v3.0.x). Not checked against the schematic; confirm the board revision when it arrives. The manual says GPIO is 3.3 V and not 5 V tolerant. Restrictions: GP/GN 11 to 13 are shared with ESP32 WiFi (v2.0 and later); GP/GN 14 to 17 are shared with the ADC; J2 also carries 5 V in and out; SD card pins are shared with the ESP32 and some WiFi GPIO. Avoid those for first use. GP/GN 0 to 7 are single-ended; 8 to 13 are differential-capable pairs and still usable as single-ended GPIO.
+
+Counts in the current design: ports in soc_top are clk, rst_n, ext_estop_n, uart_tx, pwm_left_out, pwm_right_out, actuator_disarm (plus 16-bit command monitor buses, which should NOT go to pins). There is NO UART RX, direction output, encoder input or sensor input in soc_top today. Those are gaps, not implemented.
+
+| Function | Signals | Proposed header pins | FPGA sites (from lpf) |
+|---|---|---|---|
+| Pi link UART (FPGA TX, FPGA RX) | 2 | GP0, GN0 | B11, C11 |
+| Motor PWM left, right | 2 | GP1, GN1 | A10, A11 |
+| Motor direction left, right | 2 | GP2, GN2 | A9, B10 |
+| Encoders A and B, left and right | 4 | GP3, GN3, GP4, GN4 | B9, C10, A7, A8 |
+| Motor driver enable (hardware disable, driven by actuator_disarm) | 1 | GP5 | C8 |
+| Physical E-stop input (active low, external pull-up) | 1 | GN5 | B8 |
+| Range sensors (4 ultrasonic trigger and echo pairs, or I2C ToF: 2 pins) | up to 8 | GP6 to GP9, GN6 to GN9 | C6, A6, A4, A2, C7, B6, A5, B1 |
+| Spare, same safe bank | 1 | GP10 / GN10 (C4, B4) | 2 left |
+| Expansion on J2 | 10 pairs | GP18 to GP27, GN18 to GN27 | 20 pins free, not assigned |
+
+Used: 20 of the 22 pins in GP/GN 0 to 10; J2 GP/GN 18 to 27 give 20 more; 14 pins (11 to 13, 14 to 17) held back for sharing. Total header GPIO 56. The FTDI USB UART stays for diagnostics and loading and uses no header pins.
+
+Pin-budget risks:
+1. 5 V sensors (HC-SR04 echo) and 5 V motor-driver inputs need level shifting. Not 5 V tolerant.
+2. soc_top has no direction, encoder, sensor or UART RX logic. Pins reserved here need new RTL, outside this task.
+3. Header pins must be fitted and the row chosen against the J1/J2 pinout silk screen (A9 UNVERIFIED).
+4. Sensor count depends on the sensor-coverage decision in docs/37.
+5. Motor-driver disable must fail safe when the FPGA is unconfigured: use external pull resistors (design item, not verified). During FPGA configuration pins may float; the E-stop chain should cut motor power in hardware independent of the FPGA.
+
+### 8.5 Pi to FPGA interface specification (SPECIFICATION ONLY, not implemented, values TBD for owner approval)
+
+Principle: the Pi is an untrusted advisory source. The firmware safety filter, RTL watchdog and E-stop remain on the FPGA side and the Pi cannot clear an E-stop or disarm.
+
+- Physical: UART, 3.3 V, 8N1, 115200 baud proposed, on GP0/GN0 (separate from the FTDI diagnostic UART). 115200 gives a 13-byte frame in about 1.1 ms.
+- Frame (little endian): SOF 0xA5, version (1 byte), type (1), sequence (1), length (1), payload (0 to 8 bytes), CRC-16/CCITT-FALSE over version through payload (2 bytes). Maximum frame 16 bytes.
+- Types: 0x01 advisory motion command (payload: forward and turn request as signed 16-bit, units TBD with docs/37); 0x02 heartbeat; 0x03 status request. FPGA to Pi: 0x81 status (state, last accepted sequence, fault flags).
+- Validity: a frame is accepted only if SOF, version, length bound and CRC are correct and the sequence is newer (modulo 256, not repeated). Invalid bytes are dropped and the parser re-syncs on the next SOF. Out-of-range values are clamped or rejected, then the safety filter still applies.
+- Rate and timeout: Pi sends commands at 20 Hz (proposed). A command is valid for 200 ms (TBD: must be shorter than the stopping-time budget from docs/37) and then reverts to zero command. 
+- Link loss: after the timeout the firmware commands zero speed; after a second longer timeout (TBD, for example 500 ms) it requests disarm. Recovery needs several consecutive valid frames plus an explicit re-arm request from the physical side. A framing or CRC error never refreshes the timeout. Pi reboot, cable pull or a hung Pi all look the same: no valid frames.
+- Independence: the RTL watchdog still trips if firmware stops; the E-stop overrides everything.
+- Gaps: no UART RX in RTL, no parser, no sequence logic. Test with a host script and a UART loopback only after approval.
+
+### 8.6 Purchase go / no-go recommendation (the owner buys; I buy nothing)
+
+- GO (Stage 1): Pi 5 4GB (or 2GB), Camera Module 3 Standard, 27W PSU, cooler, SD card, about GBP 173 to 175. Low risk, UK stocked, independent of the FPGA decision, enables T1.
+- NO-GO for ULX3S until: the owner has seen the Crowd Supply checkout total in GBP including VAT and fees; the owner decides whether the 500 ceiling includes contingency (central plan is about 532 with 10 percent contingency); and header fitting is confirmed.
+- NO-GO for motors, chassis, battery and sensors: out of scope for this budget and sensor choice is open.
+
+### 8.7 Still unresolved
+
+UK VAT, duty and handling fee terms (A3); exact included cable length; second 85F board prices; schematic check of pin allocation; Pi 5 pad drive current; Fmax after the UART TX addition (re-run synthesis needed); sensor type and count.
