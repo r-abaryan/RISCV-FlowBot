@@ -116,7 +116,7 @@ Currency and scope reconciliation with docs/38: this table is in USD and is robo
 ## 9. Risks and integration dependencies
 
 - Software gap: R1 to R7 (docs/35). Real sensors differ from the ideal 8-ray sim; the policy may not transfer. Sim-to-real is untested.
-- Margin 40 cm vs 25 cm must be reconciled with measured stopping distance at 0.3 m/s.
+- Margin 40 cm vs 25 cm must be reconciled with measured stopping distance at the first-test speed (0.3 m/s is only a PROPOSED value, not approved).
 - Side-obstacle stalls (min over all 8 rays): the filter is conservative; a direction-aware filter is not yet tested (hypothesis).
 - Timing: the older docs/28 estimate was about 8 MHz of margin at 25 MHz; PR 24 CI (run 39029631056, a42f89a) gives pre-bitstream Fmax estimates of 33.74, 34.74 and 34.77 MHz (see docs/38 section 9); adding I2C, encoders, UART RX may change timing. No bitstream has been made.
 - RTL has no on-FPGA distance check. Hardware E-stop is the only independent stop.
@@ -133,7 +133,7 @@ Currency and scope reconciliation with docs/38: this table is in USD and is robo
 5. Bench 5: distance sensors on the bench: measure real FOV, range, noise, latency; record against the 8-ray assumption.
 6. Bench 6: firmware loop with safety filter and a fixed (non-neural) policy, wheels lifted.
 7. Bench 7: neural policy in the loop with wheels lifted, outputs logged and compared with the Python model.
-8. Floor test, tethered, speed limited to 0.3 m/s, soft barriers, a person holding the E-stop; only after R1 to R7 are resolved.
+8. Floor test, tethered, speed limited to the first-test cap (PROPOSED 0.3 m/s, NOT approved; TBD until braking, sensor and latency parameters are established), soft barriers, a person holding the E-stop; only after R1 to R7 are resolved.
 
 ## 11. Open questions for the owner
 - Budget ceiling, and whether the board is already owned.

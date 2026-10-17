@@ -1,6 +1,6 @@
 # Hardware feasibility and cost review (planning only, GBP 500 ceiling)
 
-Status: PLANNING DOCUMENT for owner approval. Nothing bought, wired, built or tested. No RTL, firmware, safety behaviour or CI was touched. This is a separate workstream from PR 20 (docs/36 architecture) and PR 21 (docs/37 safety spec). It does not approve any safety threshold.
+Status: PLANNING DOCUMENT for owner approval. Nothing bought, wired, built or tested. No RTL, firmware, safety behaviour or CI was touched. This is a separate workstream from docs/36 (architecture, PR 20) and docs/37 (safety spec, PR 21); both are now merged. It does not approve any safety threshold.
 
 Lookups were made on 2026-10-17 from this sandbox. Several suppliers (Mouser, DigiKey, Farnell, GroupGets, Tindie) blocked automated access (HTTP 403 or bot check), so those prices are NOT VERIFIED.
 
@@ -244,3 +244,17 @@ Robot parts subtotal (ToF case): about GBP 97 to 250. With LiDAR instead of ToF:
 | High (LiDAR) | 514 | 318 | about 832 | about 915 |
 
 Conclusion (placeholder prices, not quotes): on these unverified numbers the complete robot does NOT fit GBP 500, even with the low case and no contingency. The shortfall is roughly GBP 55 to 330 before contingency. I have not forced the budget under GBP 500. Options for the owner (not decided): raise the ceiling, phase the build (electronics first, as 8.6 Stage 1 and 2), or reduce scope. The E-stop, cutoff and brown-out lines are safety items and must not be dropped to save money. Pi 5 2GB saves about GBP 31 only if T1 allows. Currencies: docs/36 USD and this document GBP are now reconciled at the 0.7508 rate above; VAT, courier fee and exchange margin remain UNVERIFIED.
+
+## 11. Owner decisions 2026-10-17 and staged purchasing proposal
+
+Owner decisions (recorded as given):
+- The GBP 500 planning ceiling is RETAINED for now.
+- A complete robot exceeds it on the placeholder prices in section 10 (roughly GBP 555 to 832 before contingency). This is a documented finding, not a reason to cut scope.
+- The 0.3 m/s first-test speed is NOT approved. It stays PROPOSED/TBD until braking, sensor and latency parameters are established (docs/37, docs/46).
+
+Staged purchasing proposal (not an order; nothing is bought; prices remain unverified placeholders):
+1. Stage A, compute and bring-up (about GBP 435 to 505, the sum of the three stages in section 6): Pi, camera, ULX3S, cables. Enables T1 to T4 and the M11 UART bring-up with no motors.
+2. Stage B, safety hardware before any motion: physical E-stop, motor power cutoff, brown-out and fuse. These are required safety items and are NOT deferred or dropped to save money. No motor is powered until Stage B is in hand and bench-verified.
+3. Stage C, motion: chassis, motors, driver, encoders, battery, supervised tethered test. Only after the speed, braking and sensor-coverage parameters are measured.
+4. Stage D, sensing upgrade (LiDAR or extra ToF): only if Stage C shows coverage gaps.
+The cumulative cost after Stage C is expected to pass GBP 500, so the owner must either raise the ceiling at that point or decide scope. Stages A and B together add roughly GBP 13 to 33 of safety parts to Stage A, so they may exceed the ceiling at the high end; this is unverified until real prices are quoted.
