@@ -7,7 +7,7 @@
 > - Divider: fixed 217 (25 MHz / 115200); implemented.
 > - The "about 8 MHz Fmax margin" in section 5 is outdated: PR #24 CI estimates 33.74, 34.74 and 34.77 MHz versus the 25 MHz constraint (pre-bitstream nextpnr estimate; run 39029631056, SHA a42f89a).
 > - UART RX (needed for the Pi link) is NOT implemented and remains a separate future milestone.
-> PR #24 is simulation and CI synthesis evidence only. It is not board-tested, and until PR #24 is merged this plan is not reflected on main.
+> PR #24 is simulation and CI synthesis evidence only. It is not board-tested, and PR #24 is now merged into main (2026-10-17), so the implemented parts are on main. UART RX is still absent.
 > Still-useful content: the checklist in docs/40 and the review in docs/41 are retained.
 
 Status: PLAN ONLY. No RTL, firmware or testbench was changed. Nothing was simulated or run in this session. Evidence class: CONFIRMED means read from source on main at 0f42040.
