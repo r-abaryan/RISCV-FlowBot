@@ -319,7 +319,9 @@ wait_l2:
     srai t5, t5, 3            /* cap = (d-25)*5>>3 */
     ble  s2, t5, 15f
     mv   s2, t5
-15: sw   s2, 0(t0)            /* last_v = v_safe */
+15: bgez s2, 16f              /* M10c: final linear velocity is never negative */
+    li   s2, 0
+16: sw   s2, 0(t0)            /* last_v = v_safe (already clamped) */
     sw   s3, 4(t0)            /* last_w = w_safe */
 
 safety_pass:

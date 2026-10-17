@@ -11,6 +11,7 @@ def f(last,rv,rw,d):
         tv=min(tv,0)
     elif tv>0:
         tv=min(tv,((d-STOP)*5)>>3)
+    tv=max(tv,0)   # M10c: nonnegative chassis v, last operation; returned value is stored as state
     return tv,tw
 def main():
     st=(64,0)
