@@ -10,7 +10,7 @@
 
 // Simple UART Character Output
 static void uart_putc(char c) {
-    while (UART_REG_STATUS & 0x01); // Wait until TX FIFO not full
+    while (UART_REG_STATUS & UART_STATUS_TX_BUSY); // Wait until TX idle (write while busy is dropped)
     UART_REG_TXDATA = (uint32_t)c;
 }
 

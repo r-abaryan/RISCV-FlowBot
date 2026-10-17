@@ -72,7 +72,11 @@
 // UART Diagnostic Console Registers (0x5000_0100)
 // ----------------------------------------------------------------------------
 #define UART_REG_TXDATA      REG32(UART_BASE + 0x000)
-#define UART_REG_STATUS      REG32(UART_BASE + 0x004)
+#define UART_REG_RXDATA      REG32(UART_BASE + 0x004)  // reads 0 (no receiver)
+#define UART_REG_STATUS      REG32(UART_BASE + 0x008)  // bit0 TX_BUSY, bit1 reserved, bit2 TX_OVERRUN (W1C)
+#define UART_REG_BAUD        REG32(UART_BASE + 0x00C)  // reads 0, writes ignored (fixed divider)
+#define UART_STATUS_TX_BUSY    (1u << 0)
+#define UART_STATUS_TX_OVERRUN (1u << 2)
 
 // ----------------------------------------------------------------------------
 // Motor PWM Registers (0x5000_0200)

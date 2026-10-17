@@ -56,7 +56,8 @@
 #define UART_REG_STATUS     (ADDR_UART_BASE + 0x08U)
 #define UART_REG_BAUD       (ADDR_UART_BASE + 0x0CU)
 #define UART_STATUS_TX_BUSY (1U << 0)
-#define UART_STATUS_RX_VALID (1U << 1)
+#define UART_STATUS_RX_VALID (1U << 1)  /* reserved, reads 0 (no RX) */
+#define UART_STATUS_TX_OVERRUN (1U << 2) /* sticky; write 1 to clear (W1C) */
 
 /* PWM Registers */
 #define PWM_REG_PERIOD      (ADDR_PWM_BASE + 0x00U)
