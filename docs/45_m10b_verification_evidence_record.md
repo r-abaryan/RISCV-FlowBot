@@ -35,10 +35,10 @@ Reported by the preceding session: C versus integer mirror passed 151,725 grid c
 ## 4. What belongs to main versus PRs
 - main a6fb987: all evidence above (the tested tree already includes PR 25 changes, i.e. the M10c clamp in the assembly, C driver, mirror and Python layer, and the rebuilt robot_nav.hex).
 - PR-specific commits (for example 91d73a8 and 56435fd of PR 25): their own test claims are documented in docs/43 and 44; nothing from this session verifies them separately. No open-PR evidence is included here.
-- Earlier evidence (docs/42, PR 24 UART/synthesis) is separate and not covered here.
+- Earlier evidence (docs/42, PR 24 UART/synthesis, PR 24 is merged) is separate and not covered here.
 
 ## 5. Unresolved (unchanged)
-- B1, B2, B3 blockers.
+- B1, B2, B3 blockers as defined in docs/37 section 11.1 (25 MHz watchdog timing, unconfigured pin and reset behaviour, independent E-stop and power cutoff). Sensor-coverage items and the stop-distance derivation are in docs/46 (PR 27, SC-1 to SC-3).
 - Reverse-motion enforcement: only chassis v >= 0 at the filter output; the wheel mixer can still drive a wheel backwards in a pivot.
 - Sensor coverage (side/rear, direction-aware) and sensor validity.
 - Physical stopping thresholds: the 25 cm firmware margin and 40 cm simulation margin are not approved; no thresholds derived from real dimensions, braking, sensor accuracy and latency.
