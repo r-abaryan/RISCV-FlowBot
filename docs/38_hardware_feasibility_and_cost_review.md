@@ -254,7 +254,17 @@ Owner decisions (recorded as given):
 
 Staged purchasing proposal (not an order; nothing is bought; prices remain unverified placeholders):
 1. Stage A, compute and bring-up (about GBP 435 to 505, the sum of the three stages in section 6): Pi, camera, ULX3S, cables. Enables T1 to T4 and the M11 UART bring-up with no motors.
-2. Stage B, safety hardware before any motion: physical E-stop, motor power cutoff, brown-out and fuse. These are required safety items and are NOT deferred or dropped to save money. No motor is powered until Stage B is in hand and bench-verified.
+2. Stage B, safety hardware before any motion: physical E-stop, motor power cutoff, brown-out and fuse, plus the MINIMUM REQUIRED SAFETY SENSORS. These are required safety items and are NOT deferred or dropped to save money. The minimum safety sensors must be selected, installed and validated (coverage, range accuracy, latency) before ANY powered motor motion, including tethered or wheels-off-ground tests that drive the motors. No motor is powered until Stage B, including those sensors, is in hand and bench-verified. The sensor type and count are still undecided (docs/46 coverage gap), so their cost is NOT in the Stage A or Stage B figures here and is TBD.
 3. Stage C, motion: chassis, motors, driver, encoders, battery, supervised tethered test. Only after the speed, braking and sensor-coverage parameters are measured.
-4. Stage D, sensing upgrade (LiDAR or extra ToF): only if Stage C shows coverage gaps.
+4. Stage D, OPTIONAL additional sensing (for example LiDAR or extra ToF beyond the minimum safety set): only if Stage C shows coverage gaps. Stage D is not where first-time safety sensor installation happens; that belongs to Stage B.
 The cumulative cost after Stage C is expected to pass GBP 500, so the owner must either raise the ceiling at that point or decide scope. Stages A and B together add roughly GBP 13 to 33 of safety parts to Stage A, so they may exceed the ceiling at the high end; this is unverified until real prices are quoted.
+
+Reconciliation of the Stage A estimate (GBP 435 to 505) with the section 8.3 electronics estimate (GBP 458 to 514). Both are unverified placeholders, not quotes, and I invented no new prices; each figure comes from section 6 or section 8.3 as written.
+| Item | Stage A (section 6 stage sums) | Section 8.3 subtotal |
+|---|---|---|
+| Pi 5 4GB, camera, PSU, cooler, SD card | 150 to 190 (Stage 1, a wider range) | 173.40 fixed (itemised line prices) |
+| Camera cable SC1128 (optional) | not listed | 0 to 0.90 |
+| ULX3S 85F delivered | 270 to 285 | 270 to 295 |
+| Headers, wires, level shifters, logic analyser, USB cables | 15 to 30 (Stage 3) | 15 to 45 |
+| Sum | 435 to 505 | 458 to 514 (173.40 + 0 to 0.90 + 270 to 295 + 15 to 45) |
+Differences: (1) Stage A uses a wider Pi range, 150 to 190 against 173.40 itemised, so its low end is lower and its high end is also lower than the 514 high end. (2) 8.3 has a higher ULX3S high end (295 against 285) and a higher accessories high end (45 against 30). (3) 8.3 adds the optional cable. Where they overlap, the figures are consistent: 458 to 505 lies inside both ranges. Contingency: NEITHER range includes contingency. The 10 percent contingency in 8.3 (about 46 to 51) is a separate line giving totals of 504 to 565. Stage A with the same 10 percent would be roughly 479 to 556 (my arithmetic on 435 to 505, unverified). Stage B safety hardware and sensors are in neither figure. Use 458 to 514 as the planning range for compute and bring-up because it is itemised; treat 435 to 505 as the earlier, coarser estimate.
