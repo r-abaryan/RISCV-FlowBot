@@ -1,5 +1,15 @@
 # M8E UART successor: plan against current main
 
+> **HISTORICAL PLAN, SUPERSEDED BY PR #24 (2026-10-17).** This document is kept as the planning record only. The work it proposed was implemented in PR #24 (branch flowbot/m8e-uart-tx-db, RTL commit a42f89a; evidence in docs/42 on that branch, which is not part of this PR). Where this text differs from PR #24, PR #24 wins:
+> - Testbench: planned `sim/tb_soc_uart_tx.v`; implemented as `tb_soc_uart.v`.
+> - Register map (D-A): STATUS at 0x08, bit 0 TX_BUSY, bit 2 sticky overrun (write-1-to-clear); implemented.
+> - Write while busy (D-B): byte dropped and overrun set; implemented.
+> - Divider: fixed 217 (25 MHz / 115200); implemented.
+> - The "about 8 MHz Fmax margin" in section 5 is outdated: PR #24 CI estimates 33.74, 34.74 and 34.77 MHz versus the 25 MHz constraint (pre-bitstream nextpnr estimate; run 39029631056, SHA a42f89a).
+> - UART RX (needed for the Pi link) is NOT implemented and remains a separate future milestone.
+> PR #24 is simulation and CI synthesis evidence only. It is not board-tested, and until PR #24 is merged this plan is not reflected on main.
+> Still-useful content: the checklist in docs/40 and the review in docs/41 are retained.
+
 Status: PLAN ONLY. No RTL, firmware or testbench was changed. Nothing was simulated or run in this session. Evidence class: CONFIRMED means read from source on main at 0f42040.
 
 ## 1. Starting point

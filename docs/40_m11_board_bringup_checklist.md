@@ -3,7 +3,7 @@
 Status: PLAN ONLY. Nothing here was run on hardware, and no board is in hand. Target: ULX3S 85F (provisional per owner). Each step records an evidence class when executed: simulated, synthesized, routed, board-tested. Today only routed (pre-bitstream STA, docs/28) exists.
 
 ## 1. Preconditions (not met)
-- UART TX implemented and simulated (docs/39). Without it the FTDI line shows nothing.
+- UART TX implemented and simulated in PR #24 (RTL commit a42f89a; open, not merged; docs/39 is the superseded plan). Simulation only, not board-tested. Without it the FTDI line shows nothing.
 - Owner decision on who runs the bring-up. Motors, driver and battery are NOT connected during any step below.
 - Board revision identified from silkscreen (the LPF is copied for v2.x/v3.0.x and is not checked against the schematic).
 
