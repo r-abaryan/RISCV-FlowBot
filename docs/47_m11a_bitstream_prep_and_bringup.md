@@ -1,6 +1,7 @@
 # M11a: ULX3S 85F bitstream preparation and bring-up procedure
 
-Status: PREPARED, NOT BUILT. No bitstream exists. No board validation. No motors or drivers may be connected during M11.
+Status: CI-BUILT, ROUTED and PACKED bitstream candidate exists (CI run 39125510946, section 7). NOT board-tested, NOT validated. No motors or drivers may be connected during M11.
+Sections 0-6 below are the historical preparation record (written before the CI run); where they say "no bitstream" or "not run", section 7 supersedes them.
 
 ## 0. PR #28 review-fix revision
 - PR #28 ADDS a new manual workflow, `.github/workflows/m11a-bitstream.yml` (workflow_dispatch only; not yet run, not to be dispatched until owner approval). It builds with a clean single `all`-mode run.
@@ -65,3 +66,51 @@ B1/B2/B3, wheel-level reverse behaviour, sensor coverage, unapproved stopping ma
 - Provenance: `inputs.sha256` is computed from the working tree, not only git HEAD: every file matched by every Yosys source glob (an unmatched glob is an error), every file under `rtl/` recursively, the top-level, ROM hex, LPF, and build scripts. Uncommitted, untracked, deleted or nested-RTL changes make standalone `pnr`/`pack` refuse.
 - OUT safety: `check_out` runs for every mode before any `rm -rf`; it refuses empty, `/`, the repo root, parents/outside paths, `.`/`..` components, a leading `-`, `.git`, source directories, symlinks resolving to those, and directories holding git-tracked files.
 - Tests: `tests/test_m11a_build_failpaths.sh` (mocked tools only). Gates (synth, ROM, LPF, timing TIMING_MET at 25 MHz, pack) unchanged. Any bitstream remains an unvalidated candidate; no board or safety claim.
+
+## 7. CI build result, run 39125510946 (CI-built, routed, packed - NOT board-tested)
+Class: SYNTHESIZED, ROUTED and PACKED in CI. Not loaded on any board. Not a hardware measurement. No UART boot, pin check on real hardware, E-stop or watchdog behaviour has been observed.
+
+### 7.1 Identity
+| Item | Value | Source |
+|---|---|---|
+| Workflow run | 39125510946 (`.github/workflows/m11a-bitstream.yml`) | owner message; artifact API |
+| Artifact | `m11a-bitstream`, ID 12135628738, zip sha256 3cdac6806cab92f1... (full digest in the artifact API `digest` field; local zip sha256 matched) | GitHub API `actions/runs/39125510946/artifacts` |
+| Source SHA | c7a565de290b58dbe777863ab8303277476a917f | artifact `inputs.sha256` line 1, `summary.txt` |
+| Firmware | sw/firmware/robot_nav.hex, sha256 1f5de89445ebf7753cba1caf8c17b72289319749053aa51a19f03300cabb1464 | `summary.txt`, `inputs.sha256` |
+| Bitstream | ulx3s_top.bit, 550,746 bytes, sha256 73c761bfcd71e3e3248cb5c865062f9dd8fcde96ea6a20e448f95e232ed157ae | `bit.sha256`; recomputed locally from the artifact, matches |
+| Toolchain | Yosys 0.70+16 (git 3bb533450); nextpnr-ecp5 0.11.1-63-g44a6c739; Project Trellis ecppack 1.4-86-ga31ff70 | artifact `summary.txt` / `metadata.txt` |
+| Target | LFE5U-85F, nextpnr `--85k --package CABGA381 --speed 6`, 25 MHz constraint, nextpnr seed 1 (single run) | workflow header |
+
+### 7.2 Gates (artifact `gate_summary.txt` / `summary.txt`)
+synth=PASS, rom=PASS, lpf=PASS, timing=PASS (class TIMING_MET), pack=PASS; OVERALL: PASS. These are the five scripted gates. They do not include any simulation of the bitstream or any board test.
+
+### 7.3 Resource counts - two different tools, not interchangeable
+Yosys synthesis (`stat.txt`, `synth_ecp5`, top `ulx3s_top`): 8,710 LUT4, 586 CCU2C (carry), 1,242 PFUMX, 281 L6MUX21, 38 DP16KD, 12 MULT18X18D, 13,929 cells total.
+
+nextpnr (`pnr/nextpnr.log`, 85F, 83,640 LUT4 available):
+| Resource | Used / available |
+|---|---|
+| Total LUT4 (before packing) | 11,994 / 83,640 (14%) |
+| TRELLIS_COMB (after packing) | 12,162 / 83,640 (14%) |
+| TRELLIS_FF | 2,692 / 83,640 (3%) |
+| TRELLIS_RAMW | 352 / 10,455 (3%) |
+| DP16KD | 38 / 208 (18%) |
+| MULT18X18D | 12 / 156 (7%) |
+| TRELLIS_IO | 12 / 365 (3%); DCCA 1 / 56 |
+
+Why 8,710 and 11,994 differ: they count different things. Yosys 8,710 is the number of LUT4 cells only. nextpnr's "Total LUT4s" counts every LUT-slice site that the design occupies, and its own breakdown in the log is: logic LUTs 8,710 + carry LUTs 1,172 + RAM LUTs 1,408 + RAMW LUTs 704 = 11,994 (arithmetic checked). 1,172 = 2 x 586 CCU2C (each CCU2C occupies two LUT sites); the RAM/RAMW LUTs are the distributed-RAM (register file style) slices, consistent with TRELLIS_RAMW 352 (my interpretation of the mapping; not separately verified against the netlist). Neither figure includes PFUMX/L6MUX21 as separate LUT4. The routed utilization figure is the one to cite for device fit; the Yosys figure is the logic-only synthesis count.
+
+Old claim check: the "2,686 LUT4 / 1,180 FF / 4 DSP, ~11.2% of ECP5-25F" figure first appears in commit a0cbd34 (README.md and CHECKPOINT_REPORT.md, 2026-10-12). The commit cited as source (dffa1c2) does not contain the string 2,686 (its per-module table has e.g. picorv32 1,314 LUT4 / 573 FF); no Yosys log backs it. It is refuted by this run: 8,710 synthesized and 11,994 routed LUT4, 12 MULT18X18D, 2,692 FF. The text '2,686' remains only in historical commit a0cbd34 and later history; current README/CHECKPOINT/docs already carry the corrected 8,7xx/12k figures (grep of the working tree finds it only in a context line already marked as refuted). The same table claimed 4 DSPs; no log supports it, and this run shows 12 MULT18X18D.
+
+### 7.4 Timing: 31.67 MHz vs 33.74 MHz (nextpnr.log, report.json, pnr_classify.py)
+Both figures are nextpnr's Fmax for the single clock `clk_25mhz` (global net `$glbnet$clk_25mhz$TRELLIS_IO_IN`), but at different stages of the same run:
+- 31.67 MHz, nextpnr.log line 115: printed at the end of placement (after the simulated-annealing placer, before "Routing globals" at line 145), using placement-time delay estimates. Pre-route estimate; not final.
+- 33.74 MHz, nextpnr.log line 537: printed after "Routing complete" (line 248) and the post-route critical-path report (lines 252-535). This is the post-route STA figure. `report.json` `fmax` records achieved 33.73705 MHz against constraint 25, and `pnr_classify.py` takes exactly this field (TIMING_MET if achieved >= constraint for every clock). So 33.74 is the authoritative figure, and the earlier session guess that 31.67 was final was wrong. That the post-route line is also the last line is coincidental; the stage was identified from the log context, not from position.
+- Post-route critical clk->clk path: 29.64 ns total (13.19 ns logic, 16.45 ns routing; 1/29.64 ns = 33.74 MHz), starting at an NNA register-file (bias_buf) flop, through carry/LUT logic, ending at a setup check on a MULT18X18D input fed by the NNA out_buf path (names truncated in the log; exact endpoint not further analysed). Slack against the 40 ns period is about 10.4 ns (arithmetic from the two numbers).
+- Not covered by Fmax: async (I/O) paths are reported separately: input->clk max 1.19 ns; clk->output max 12.36 ns. They are not constrained to the 25 MHz clock and not part of the TIMING_MET decision. Single seed, one run; Fmax is a CI STA estimate, not a measurement on silicon, and says nothing about board-level clock quality or I/O timing.
+
+### 7.5 Co-simulation latency clock definition
+docs/16 states 3,302 cycles = 66.04 us "at 50 MHz". Verified in `sim/tb_soc_cosim.v`: the testbench clock is `always #10 clk = ~clk` (20 ns period, labelled 50 MHz), so the cycle count is in that testbench's clock cycles, and the 66.04 us conversion is only a unit conversion with an assumed 50 MHz clock. The ULX3S build is constrained to 25 MHz. IF the SoC executes the same cycle count at 25 MHz (cycles are clock-independent in this RTL simulation, which has no external timing), 3,302 x 40 ns = 132.08 us. This conversion is CONDITIONAL: docs/16 already marks the 3,302-cycle figure as from an invalidated run and UNVERIFIED pending re-measurement, and the firmware/RTL (UART TX, M10c firmware rebuild) changed after that run. No new latency measurement was made here.
+
+### 7.6 Unresolved (unchanged)
+B1/B2/B3, wheel-level reverse behaviour, sensor coverage, unapproved stopping margins (25 cm firmware / 40 cm sim not approved), motor and physical safety readiness, UART RX (not implemented), E-stop input polarity, board-level clock and FTDI timing. No board test, no robot test.
