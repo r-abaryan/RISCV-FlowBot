@@ -1,8 +1,0 @@
-199390a9fa7c408c1eac0cd1dddbfa6a8158a83b
-1f5de89445ebf7753cba1caf8c17b72289319749053aa51a19f03300cabb1464  sw/firmware/robot_nav.hex
-470b88606c7b04e59c48a699c92d899b7d4e87b5de7c20bf09a6637f91169533  fpga/ulx3s/ulx3s_85f.lpf
-0228fc90ad6ea29b260050f0187437259ace51b7ad2d69788d14e6d6bece1c31  fpga/ulx3s/ulx3s_top.v
-badeaeebca3dd1c064d8a684d409ace209d8ce2639c904f2398f24507c220481  rtl/soc_top.v
-Yosys 0.70+16 (git sha1 3bb533450, Release, Clang /usr/bin/clang++ 21.1.8)
-"nextpnr-ecp5" -- Next Generation Place and Route (Version nextpnr-0.11.1-63-g44a6c739)
-Project Trellis ecppack Version 1.4-86-ga31ff70
