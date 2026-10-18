@@ -64,5 +64,30 @@ run "synth again" 0 $B synth; run "pnr after synth" 0 $B pnr
 rm o/status/rom; run "standalone pnr, missing rom status" nz $B pnr
 run "synth again 2" 0 $B synth; run "pnr 2" 0 $B pnr; rm o/pnr/result.txt; run "pack without timing result" nz $B pack
 run "pnr 3" 0 $B pnr; rm o/ulx3s_top.config; run "pack without config" nz $B pack
+# --- unsafe OUT values: must be refused (rc!=0) BEFORE any deletion; sentinels must survive ---
+rm -rf o; mkdir -p "$T/w/keep"; echo s > "$T/w/keep/sentinel"; echo s > "$T/sentinel_parent"; git add -A; git commit -qm keep
+for bad in "" "/" "." ".." "../x" "$T" "$T/w" "$T/w/" "$T/w/." "$T/w/keep/.." "rtl" "sw/firmware" "keep/../rtl" "/tmp/../" "-rf"; do
+  env OSS="$T/oss" OUT="$bad" bash scripts/build_ulx3s_bitstream.sh all >"$T/unsafe.log" 2>&1; rc=$?
+  if [ $rc -ne 0 ] && grep -q REFUSE "$T/unsafe.log" && [ -s rtl/soc_top.v ] && [ -s "$T/w/keep/sentinel" ] && [ -s "$T/sentinel_parent" ] && [ -d .git ]; then echo "PASS  unsafe OUT refused: '$bad' (rc=$rc)"; else echo "FAIL  unsafe OUT '$bad' rc=$rc"; cat "$T/unsafe.log"; fail=1; fi
+done
+# a tracked-file directory as OUT, and an OUT symlink pointing at the repo root
+ln -s "$T/w" "$T/w/lnk"; env OSS="$T/oss" OUT=lnk bash scripts/build_ulx3s_bitstream.sh all >/dev/null 2>&1; [ $? -ne 0 ] && [ -s rtl/soc_top.v ] && echo "PASS  symlink OUT to repo root refused" || { echo "FAIL symlink OUT"; fail=1; }; rm -f "$T/w/lnk"
+env OSS="$T/oss" OUT=keep bash scripts/build_ulx3s_bitstream.sh all >/dev/null 2>&1; [ $? -ne 0 ] && [ -s keep/sentinel ] && echo "PASS  OUT with tracked files refused" || { echo "FAIL tracked OUT"; fail=1; }
+for m in synth pnr pack report; do env OSS="$T/oss" OUT= bash scripts/build_ulx3s_bitstream.sh $m >/dev/null 2>&1; [ $? -ne 0 ] && [ ! -e /summary.txt ] && echo "PASS  empty OUT refused in $m mode" || { echo "FAIL empty OUT $m"; fail=1; }; done
+# --- stale-input detection on non-top-level / uncommitted / untracked synthesis inputs ---
+stale() { # name, mutate-cmd, restore-cmd
+  rm -rf o; run "synth for stale test: $1" 0 $B synth; run "pnr fresh: $1" 0 $B pnr
+  eval "$2"; run "standalone pnr refuses: $1" nz $B pnr
+  run "standalone pack refuses: $1" nz $B pack
+  eval "$3"; rm -rf o
+}
+stale "modified rtl/nna/x.v (uncommitted)" 'echo chg >> rtl/nna/x.v' 'git checkout -q rtl/nna/x.v'
+stale "modified rtl/cpu/picorv32.v (uncommitted)" 'echo chg >> rtl/cpu/picorv32.v' 'git checkout -q rtl/cpu/picorv32.v'
+stale "modified rtl/bus/x.v" 'echo chg >> rtl/bus/x.v' 'git checkout -q rtl/bus/x.v'
+stale "new untracked rtl/safety/y.v" 'echo m > rtl/safety/y.v' 'rm -f rtl/safety/y.v'
+stale "new untracked nested rtl/periph/sub/z.v" 'mkdir -p rtl/periph/sub; echo m > rtl/periph/sub/z.v' 'rm -rf rtl/periph/sub'
+stale "deleted rtl/mem/x.v" 'rm rtl/mem/x.v' 'git checkout -q rtl/mem/x.v'
+stale "modified fpga/ulx3s/ulx3s_top.v" 'echo chg >> fpga/ulx3s/ulx3s_top.v' 'git checkout -q fpga/ulx3s/ulx3s_top.v'
+stale "modified firmware hex" 'echo chg >> sw/firmware/robot_nav.hex' 'git checkout -q sw/firmware/robot_nav.hex'
 run "report with no run" nz $B report
 [ $fail -eq 0 ] && echo "ALL MOCK FAIL-PATH CHECKS PASSED" || echo "SOME CHECKS FAILED"; exit $fail

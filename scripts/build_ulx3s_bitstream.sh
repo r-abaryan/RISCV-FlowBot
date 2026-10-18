@@ -9,7 +9,7 @@
 #   pack (ecppack exit 0 and bitstream exists). Any non-PASS => nonzero exit, no later stage runs.
 # Output is an UNVALIDATED bitstream CANDIDATE. Not board-tested. Not a hardware result.
 set -uo pipefail
-STEP=${1:-all}; OUT=${OUT:-out_m11a}; SEED=1; FREQ=25
+STEP=${1:-all}; OUT=${OUT-out_m11a}; SEED=1; FREQ=25
 LPF=fpga/ulx3s/ulx3s_85f.lpf; HEX=sw/firmware/robot_nav.hex
 ROM_CHECK=${ROM_CHECK:-python3 scripts/check_rom_mapped.py}
 LPF_CHECK=${LPF_CHECK:-python3 scripts/check_lpf_ports.py}
@@ -20,7 +20,34 @@ GATES="synth rom lpf timing pack"
 
 setst() { mkdir -p "$ST"; echo "$2" > "$ST/$1"; }
 getst() { cat "$ST/$1" 2>/dev/null || echo MISSING; }
-inputs_hash() { { git rev-parse HEAD; sha256sum $HEX $LPF fpga/ulx3s/ulx3s_top.v rtl/soc_top.v; } 2>&1; }
+# Hash EVERY synthesis input from the working tree (so uncommitted / untracked edits are detected): the explicit file
+# list Yosys reads (every file matched by every $SRC glob; an unmatched glob is an error) plus every file under rtl/
+# (includes, nested dirs), the top-level inputs, and the build scripts. HEAD is recorded too.
+src_files() {
+  local g m
+  for g in $SRC; do m=$(compgen -G "$g") || { echo "MISSING-GLOB:$g"; continue; }; echo "$m"; done
+  find rtl -type f 2>/dev/null; echo $HEX; echo $LPF; echo fpga/ulx3s/ulx3s_top.v
+  echo scripts/build_ulx3s_bitstream.sh; echo scripts/pnr_classify.py
+}
+inputs_hash() { { git rev-parse HEAD; src_files | LC_ALL=C sort -u | while read -r f; do
+    if [ -f "$f" ]; then sha256sum "$f"; else echo "ABSENT $f"; fi; done; } 2>&1; }
+
+# Refuse unsafe OUT before anything is deleted. OUT must resolve to a strict subdirectory of the repo root.
+check_out() {
+  local root abs
+  [ -n "${OUT:-}" ] || { echo "REFUSE: OUT is empty"; return 1; }
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "REFUSE: not in a git repo"; return 1; }
+  root=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$root"); abs=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$OUT")
+  case "$OUT" in -*) echo "REFUSE: OUT starts with '-'"; return 1;; esac
+  case "/$OUT/" in */../*|*/./*) echo "REFUSE: OUT contains . or .. component: $OUT"; return 1;; esac
+  [ "$abs" != / ] || { echo "REFUSE: OUT is filesystem root"; return 1; }
+  [ "$abs" != "$root" ] || { echo "REFUSE: OUT is the repository root"; return 1; }
+  case "$abs/" in "$root"/*) ;; *) echo "REFUSE: OUT ($abs) is outside the repository root or a parent of it"; return 1;; esac
+  case "$abs/" in "$root"/.git/*) echo "REFUSE: OUT inside .git"; return 1;; esac
+  if [ -n "$(git ls-files -- "$abs" 2>/dev/null | head -1)" ]; then echo "REFUSE: OUT contains git-tracked files"; return 1; fi
+  case "$abs" in "$root"/rtl|"$root"/rtl/*|"$root"/sw|"$root"/sw/*|"$root"/fpga|"$root"/fpga/*|"$root"/scripts|"$root"/scripts/*|"$root"/tests|"$root"/tests/*|"$root"/docs|"$root"/docs/*) echo "REFUSE: OUT inside a source directory"; return 1;; esac
+  return 0
+}
 
 report() {   # always safe to call; exit 0 only if every gate is PASS
   mkdir -p "$OUT"; local all=PASS g s
@@ -47,6 +74,7 @@ need_fresh() {  # $1 = required previous gates
 }
 
 do_synth() {
+  check_out || return 1
   [ "$STEP" = all ] && rm -rf "$OUT"
   mkdir -p "$ST" "$PNR"
   for g in $GATES; do rm -f "$ST/$g"; done
@@ -91,6 +119,7 @@ do_pack() {
   setst pack FAIL; return 1
 }
 
+case "$STEP" in report|synth|pnr|pack|all) check_out || exit 2;; esac
 case "$STEP" in
   report) report; exit $? ;;
   synth|pnr|pack) OSS=${OSS:?set OSS}; export PATH=$OSS/bin:$PATH

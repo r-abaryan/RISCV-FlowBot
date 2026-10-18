@@ -41,7 +41,15 @@ Interlock text "Armed" is a string only; it is not evidence of safety function.
 3. Identify the FPGA: `openFPGALoader --detect` (or `-b ulx3s --detect`). Expect an ECP5 with IDCODE 0x41113043 (LFE5U-85F). A different IDCODE means stop.
 4. Load to SRAM (volatile, no flash write): `openFPGALoader -b ulx3s ulx3s_top.bit`. Do not write flash in first bring-up.
 5. Capture UART: find the FTDI port (/dev/ttyUSB0 or similar), then `stty -F /dev/ttyUSB0 115200 raw -echo; timeout 5 cat /dev/ttyUSB0 | tee capture.bin | xxd`, with the reset/E-stop inputs set as in sim/tb_ulx3s_top.v. Check the input polarity of btn0 and sw0 against the board schematic first; the testbench marks the E-stop DIP polarity as assumed.
-6. Compare: `cmp capture.bin <(python3 expected)` against the 148 bytes above (sha256 of expected bytes to be computed from the hex and stored with the result).
+6. Compare (deterministic; run from the repo root at the same commit as the bitstream). `capture.bin` should hold the bytes received after reset; only the first 148 are compared (the firmware continues with `[CYCLE ...` lines):
+   ```
+   python3 scripts/extract_expected_banner.py sw/firmware/robot_nav.hex expected_banner.bin   # exits nonzero unless exactly 148 bytes
+   sha256sum expected_banner.bin
+   head -c 148 capture.bin > capture148.bin
+   [ "$(stat -c %s capture148.bin)" -eq 148 ] || echo "FAIL: capture shorter than 148 bytes"
+   cmp expected_banner.bin capture148.bin && echo "PASS: 148-byte banner matches" || echo "FAIL: mismatch"
+   ```
+   The 148-byte length was confirmed by extraction on 2026-10-18 (single NUL-terminated string in robot_nav.hex); the script prints the sha256, to be recorded with the result. **No physical capture has been performed**; this procedure has not been run against hardware. Open the serial port before pressing reset so the start is not missed.
 7. Record: bitstream sha256, openFPGALoader version, board revision, capture file, photo of setup.
 
 ## 5. Pass/fail criteria
@@ -52,3 +60,8 @@ Levels (never merge them):
 
 ## 6. Unresolved (unchanged)
 B1/B2/B3, wheel-level reverse behaviour, sensor coverage, unapproved stopping margins, physical safety readiness, UART RX (not implemented), E-stop input polarity, board-level clock and FTDI timing. Prices and board availability are outside this document.
+
+## 6. PR #28 follow-up review (provenance, OUT safety, validation) - no real tools run
+- Provenance: `inputs.sha256` is computed from the working tree, not only git HEAD: every file matched by every Yosys source glob (an unmatched glob is an error), every file under `rtl/` recursively, the top-level, ROM hex, LPF, and build scripts. Uncommitted, untracked, deleted or nested-RTL changes make standalone `pnr`/`pack` refuse.
+- OUT safety: `check_out` runs for every mode before any `rm -rf`; it refuses empty, `/`, the repo root, parents/outside paths, `.`/`..` components, a leading `-`, `.git`, source directories, symlinks resolving to those, and directories holding git-tracked files.
+- Tests: `tests/test_m11a_build_failpaths.sh` (mocked tools only). Gates (synth, ROM, LPF, timing TIMING_MET at 25 MHz, pack) unchanged. Any bitstream remains an unvalidated candidate; no board or safety claim.
