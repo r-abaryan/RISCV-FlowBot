@@ -1,0 +1,56 @@
+# M11a: manual-only, ONE synth -> nextpnr (seed 1) -> ecppack run of ulx3s_top on LFE5U-85F-6BG381C at 25 MHz.
+# Uses scripts/build_ulx3s_bitstream.sh and the same pinned OSS CAD Suite as pnr-soc-top.yml.
+# Output is an UNVALIDATED bitstream CANDIDATE + estimate-level timing only. NOT board-tested. No runtime claim.
+# This PR ADDS a new manual workflow (workflow_dispatch only).
+# --timing-allow-fail keeps reports; timing verdict is classified separately and a failure fails the job.
+name: m11a-bitstream
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+env:
+  OSS_CAD_URL: https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-10-14/oss-cad-suite-linux-x64-20261014.tgz
+  OSS_CAD_SHA256: a6ccc6b96b2d985336a1061c78b2fd2bdd73e0f68690da17db88e00457881a11
+jobs:
+  bitstream:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned OSS CAD Suite
+        run: |
+          set -euo pipefail
+          mkdir -p out_m11a
+          curl -sL --retry 3 -o oss.tgz "$OSS_CAD_URL"
+          echo "$OSS_CAD_SHA256  oss.tgz" | sha256sum -c - | tee out_m11a/oss_sha_check.txt
+          tar xzf oss.tgz
+          rm oss.tgz
+      - name: Clean single all-mode build (gates: synth, ROM, LPF, timing TIMING_MET@25MHz, pack)
+        run: |
+          OSS="$PWD/oss-cad-suite" OUT=out_m11a scripts/build_ulx3s_bitstream.sh all
+      - name: Final gate check and job summary
+        if: always()
+        run: |
+          set -uo pipefail
+          # Re-derive verdict independently from recorded status files; missing = failure.
+          bad=0
+          for g in synth rom lpf timing pack; do
+            v=$(cat out_m11a/status/$g 2>/dev/null || echo MISSING); echo "$g=$v"; [ "$v" = PASS ] || bad=1
+          done | tee out_m11a/gate_summary.txt
+          for g in synth rom lpf timing pack; do [ "$(cat out_m11a/status/$g 2>/dev/null)" = PASS ] || bad=1; done
+          [ "$(head -1 out_m11a/pnr/result.txt 2>/dev/null)" = TIMING_MET ] || bad=1
+          if [ ! -f out_m11a/summary.txt ]; then
+            { echo "# M11a UNVALIDATED candidate: build did not reach summary"; echo "OVERALL: FAIL"; } > out_m11a/summary.txt
+            bad=1
+          fi
+          { echo '```'; cat out_m11a/summary.txt out_m11a/gate_summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $bad
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: m11a-bitstream
+          path: out_m11a/
+          if-no-files-found: warn
