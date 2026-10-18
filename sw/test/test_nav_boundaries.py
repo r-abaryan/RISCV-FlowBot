@@ -132,9 +132,15 @@ def setup():
     sh(f'iverilog -I{R}/rtl -DROM_INIT_FILE=\\"{tmp}/fw.hex\\" -o {tmp}/tb.vvp {" ".join(srcs)} {R}/sim/tb_soc_nav.v')
     return tmp, open(FW+'/robot_nav_firmware.s').read()
 def main(args):
-    """args: scen:NAME | mut:NAME | rev:NAME | revbase:NAME | revmut:NAME | (none = everything; ~50 s of simulation per item)"""
+    """args: scen:NAME | mut:NAME | rev:NAME | revbase:NAME | revmut:NAME
+    No args = FULL required coverage (15 items, ~7 min): all scen, mut, rev (M10c fixed firmware),
+    revmut (M10c negative controls) and revbase (pre-fix firmware at BASE_REV, default 082fd98,
+    which MUST fail; a detected failure counts as PASS). revbase needs BASE_REV in git history
+    (not a shallow clone). Pass explicit items to run a subset."""
     tmp, base = setup()
-    todo = args or ['scen:'+n for n in SCEN] + ['mut:'+n for n in MUT]
+    todo = args or (['scen:'+n for n in SCEN] + ['mut:'+n for n in MUT] +
+                    ['rev:'+n for n in INJ] + ['revmut:'+n for n in RMUT] +
+                    ['revbase:'+n for n in INJ])
     fails = 0
     for a in todo:
         kind, name = a.split(':')
