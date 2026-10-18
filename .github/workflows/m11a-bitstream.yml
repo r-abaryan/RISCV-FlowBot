@@ -28,7 +28,7 @@ jobs:
           echo "$OSS_CAD_SHA256  oss.tgz" | sha256sum -c - | tee out_m11a/oss_sha_check.txt
           tar xzf oss.tgz
           rm oss.tgz
-      - name: Clean single all-mode build (gates: synth, ROM, LPF, timing TIMING_MET@25MHz, pack)
+      - name: "Clean single all-mode build (gates: synth, ROM, LPF, timing TIMING_MET@25MHz, pack)"
         run: |
           OSS="$PWD/oss-cad-suite" OUT=out_m11a scripts/build_ulx3s_bitstream.sh all
       - name: Final gate check and job summary
