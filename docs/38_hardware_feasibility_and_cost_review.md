@@ -84,7 +84,7 @@ Known gap blocking T4: in fpga/ulx3s/ulx3s_85f.lpf only clock, UART RX, one butt
 
 1. Budget: the ULX3S import VAT and exchange rate can consume the whole contingency.
 2. Output pins missing: motor-control outputs have no constraints, so T4 cannot run until an approved wrapper change exists.
-3. Timing margin: the pre-bitstream Fmax estimate is about 33.7 to 34.8 MHz versus a 25 MHz clock (section 9, includes the UART TX); this is an estimate only, no bitstream exists.
+3. Timing margin: the pre-bitstream Fmax estimate is about 33.7 to 34.8 MHz versus a 25 MHz clock (section 9, includes the UART TX); this is an estimate only. Update: a CI-built bitstream candidate now exists (run 39125510946, post-route 33.74 MHz, docs/47 section 7), still not board-tested.
 4. Link-loss behaviour between Pi and FPGA is not specified or implemented. The Pi must be treated as an untrusted advisory source; the safety filter and watchdog stay on the FPGA side.
 5. Camera cable and connector mismatch on Pi 5 (A7).
 6. Crowd Supply is a US shipper; customs delay and returns for a faulty board are slower than a UK reseller.
