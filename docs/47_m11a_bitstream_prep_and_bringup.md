@@ -2,13 +2,20 @@
 
 Status: PREPARED, NOT BUILT. No bitstream exists. No board validation. No motors or drivers may be connected during M11.
 
+## 0. PR #28 review-fix revision
+- PR #28 ADDS a new manual workflow, `.github/workflows/m11a-bitstream.yml` (workflow_dispatch only; not yet run, not to be dispatched until owner approval). It builds with a clean single `all`-mode run.
+- Gates, each recorded independently in out_m11a/status/: synth, ROM mapped check, LPF port check, timing (scripts/pnr_classify.py must return TIMING_MET at 25 MHz; nextpnr exit 0 alone is insufficient; classifier criteria unchanged, the script writes exit.txt/stdout.txt/report.json/nextpnr.log in out_m11a/pnr/), pack. Missing or failed gate => nonzero exit, no later stage. Standalone pnr/pack reject missing or stale intermediates (inputs.sha256 vs HEAD/source hashes).
+- Artifact and job summary include source SHA, firmware hash, tool versions, bitstream SHA-256, PASS/FAIL per gate; artifact uploaded with if: always().
+- Any bitstream produced is an UNVALIDATED bitstream CANDIDATE: not board-tested, not a validated design, not a hardware result.
+- Verification of this revision: mocked failure-path test only (tests/test_m11a_build_failpaths.sh, fake tools). Yosys, nextpnr, ecppack and GitHub Actions were NOT run.
+
 ## 1. Build result (honest)
 - Script added: scripts/build_ulx3s_bitstream.sh (synth, pnr, pack, all). Same commands as .github/workflows/pnr-soc-top.yml, seed fixed to 1, 25 MHz, plus ecppack with --compress --idcode 0x41113043. The script has not been run to completion.
 - Attempt: one synth run in the agent sandbox with the pinned OSS CAD Suite 2026-10-14 (tarball sha256 a6ccc6b9...1a11, matches CI pin; Yosys 0.70+16 git 3bb533450, nextpnr 0.11.1-63-g44a6c739, ecppack 1.4-86-ga31ff70).
 - Outcome: Yosys was killed by the kernel out-of-memory killer (cgroup limit, about 458 MB RAM) during synth_ecp5 LUT mapping. This is an environment blocker, not a design result. Not retried, per instructions. No PNR, no bitstream, no resource or timing figure from this run.
 - Metadata of the attempt: logs/m11a/metadata.txt.
 - Available evidence remains the CI run 39029631056 (docs/42): synthesized and routed estimates only, Fmax 33.74/34.74/34.77 MHz at 25 MHz constraint, not board measurements.
-- Minimum way to finish: run `OSS=<oss-cad-suite> scripts/build_ulx3s_bitstream.sh all` on a machine with enough RAM (several GB), or ask owner to approve a manual CI job that calls it. A new workflow was NOT created.
+- Minimum way to finish: run `OSS=<oss-cad-suite> scripts/build_ulx3s_bitstream.sh all` on a machine with enough RAM (several GB), or ask owner to approve a manual CI job that calls it. 
 
 ## 2. Inputs checked
 - Source commit: 199390a9fa7c408c1eac0cd1dddbfa6a8158a83b (main after PR 22 merge; PRs 23-25 merged).

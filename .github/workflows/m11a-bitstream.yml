@@ -1,6 +1,7 @@
 # M11a: manual-only, ONE synth -> nextpnr (seed 1) -> ecppack run of ulx3s_top on LFE5U-85F-6BG381C at 25 MHz.
 # Uses scripts/build_ulx3s_bitstream.sh and the same pinned OSS CAD Suite as pnr-soc-top.yml.
-# Output is a bitstream candidate + estimate-level timing only. NOT a board result. No runtime claim.
+# Output is an UNVALIDATED bitstream CANDIDATE + estimate-level timing only. NOT board-tested. No runtime claim.
+# This PR ADDS a new manual workflow (workflow_dispatch only).
 # --timing-allow-fail keeps reports; timing verdict is classified separately and a failure fails the job.
 name: m11a-bitstream
 on:
@@ -27,20 +28,26 @@ jobs:
           echo "$OSS_CAD_SHA256  oss.tgz" | sha256sum -c - | tee out_m11a/oss_sha_check.txt
           tar xzf oss.tgz
           rm oss.tgz
-      - name: Synth, PnR, pack
+      - name: Clean single all-mode build (gates: synth, ROM, LPF, timing TIMING_MET@25MHz, pack)
         run: |
           OSS="$PWD/oss-cad-suite" OUT=out_m11a scripts/build_ulx3s_bitstream.sh all
-      - name: Classify result
+      - name: Final gate check and job summary
         if: always()
         run: |
           set -uo pipefail
-          for f in yosys_exit pnr_exit ecppack_exit; do echo "$f=$(cat out_m11a/$f.txt 2>/dev/null || echo missing)"; done | tee out_m11a/exit_summary.txt
-          grep -E "Max frequency|ERROR" out_m11a/nextpnr.log | tail -8 | tee out_m11a/fmax_summary.txt
-          sha256sum out_m11a/ulx3s_top.bit 2>/dev/null | tee -a out_m11a/exit_summary.txt
-          grep -q "yosys_exit=0" out_m11a/exit_summary.txt && grep -q "pnr_exit=0" out_m11a/exit_summary.txt && grep -q "ecppack_exit=0" out_m11a/exit_summary.txt
-          rc=$?
-          python3 scripts/pnr_classify.py --help >/dev/null 2>&1 && echo "pnr_classify available; run manually on artifacts" >> out_m11a/exit_summary.txt
-          exit $rc
+          # Re-derive verdict independently from recorded status files; missing = failure.
+          bad=0
+          for g in synth rom lpf timing pack; do
+            v=$(cat out_m11a/status/$g 2>/dev/null || echo MISSING); echo "$g=$v"; [ "$v" = PASS ] || bad=1
+          done | tee out_m11a/gate_summary.txt
+          for g in synth rom lpf timing pack; do [ "$(cat out_m11a/status/$g 2>/dev/null)" = PASS ] || bad=1; done
+          [ "$(head -1 out_m11a/pnr/result.txt 2>/dev/null)" = TIMING_MET ] || bad=1
+          if [ ! -f out_m11a/summary.txt ]; then
+            { echo "# M11a UNVALIDATED candidate: build did not reach summary"; echo "OVERALL: FAIL"; } > out_m11a/summary.txt
+            bad=1
+          fi
+          { echo '```'; cat out_m11a/summary.txt out_m11a/gate_summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $bad
       - uses: actions/upload-artifact@v4
         if: always()
         with:
