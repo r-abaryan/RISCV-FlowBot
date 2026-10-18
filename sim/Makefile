@@ -182,7 +182,8 @@ test_rom_layout: firmware
 test_wdt_negative: firmware
 	sh $(ROOT_DIR)/sim/run_wdt_negative.sh
 
-# M7D: SoC-executed assembly safety boundary tests (slow: ~50 s per simulated item; run subsets via ARGS="scen:slew_open")
+# M7D/M10b/M10c: SoC-executed assembly safety boundary tests. Default = full coverage (15 items, ~7 min,
+# incl. rev/revmut/revbase); run subsets via ARGS="scen:slew_open"
 test_nav_boundaries:
 	python3 ../sw/test/test_nav_boundaries.py $(ARGS)
 test_front_sensor_mapping:
