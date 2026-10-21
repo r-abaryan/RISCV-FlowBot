@@ -56,3 +56,19 @@ Before the fix (main), at divider 217 up to the PASS token: max gap 418,563 cycl
 - Other blocking prints remain only where each byte waits on TX-ready, and each of those now kicks. Code paths
   outside `uart_puts`/`uart_put_nibble` that busy-wait for a long time would still need review if added later.
 - Milestone 2 (PWM scale + sign-magnitude motor contract) is still to do on the same branch.
+
+## 5. Pause point (2026-10-21, owner requested a pause after milestone 1)
+- **Milestone 1: complete** (implemented and simulated only). The code is in commit 018a8ff on this branch. There is no PR yet: the one PR opens after milestone 2 is done and both have been reviewed.
+- **Milestone 2: not started.** Only a survey was done; no code has changed. Every file that uses the current
+  "0..1000, 500 = stop" PWM mapping has to change in the same commit:
+  - RTL: `rtl/periph/soc_pwm.v`, `rtl/soc_top.v` ports, `fpga/ulx3s/ulx3s_top.v` (+ constraints).
+  - Firmware: `sw/firmware/robot_nav_firmware.s`, `soc_cosim_firmware.s`, `soc_firmware.s`, `main.c`,
+    `sw/include/robot_drivers.h`, `sw/include/soc_regs.h`, `sw/firmware/soc_regs.h`.
+  - Tests: `sim/tb_soc_nav.v`, `sim/soc_closed_loop_cosim.py`, `sw/test/test_nav_boundaries.py`,
+    `sw/test/test_nav_expected.py`, `sim/tb_ulx3s_top.v`, plus a new pin-level PWM waveform test.
+- **Proposal for milestone 2 (not approved yet):** a signed command from -1000 to +1000, where 0 means stop. Each channel
+  gets a PWM magnitude plus DIR and EN signals. The PWM period becomes 1000 clock cycles (25 kHz at a nominal 25 MHz). When the
+  system disarms, EN turns off and PWM goes to 0, so the safe pin state means "no drive" rather than "full reverse".
+- **Owner decisions needed before milestone 2** (these affect safety): on disarm, should the motors coast or brake? Should
+  the channels use one shared standby pin or a separate enable each? Is 25 kHz the right PWM frequency? Which driver class
+  (TB6612-class is assumed; nothing has been bought)? Which ULX3S pins?
