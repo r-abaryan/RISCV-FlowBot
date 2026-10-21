@@ -43,7 +43,7 @@ module safety_filter (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             reg_enable       <= 1'b1;         // Enabled by default on reset
-            reg_timeout_val  <= 32'd2500000;  // Default 50ms at 50MHz
+            reg_timeout_val  <= 32'd2500000;  // Reset default: 2.5M cycles (100 ms at nominal 25 MHz ULX3S clock; 50 ms only if clocked at 50 MHz)
             wdt_countdown    <= 32'd2500000;
             flag_wdt_expired <= 1'b0;
             flag_tripped     <= 1'b0;

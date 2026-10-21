@@ -146,6 +146,17 @@ test_nav: firmware
 		-o $(ROOT_DIR)/sim/tb_soc_nav.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v
 	$(VVP) $(ROOT_DIR)/sim/tb_soc_nav.vvp
 
+# M11b watchdog-budget regression at the board UART divider (217 = 25 MHz / 115200).
+# Runs the navigation firmware past the PASS token (pass banner + idle loop) with a
+# passive monitor that fails on any watchdog trip or a refresh gap > 250,000 cycles
+# (50% of the firmware's 500,000-cycle timeout). Slow (~minutes); not in test_rtl.
+test_nav_div217: firmware
+	@echo "--- Navigation firmware at UART_DIV=217 with watchdog-budget monitor ---"
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/robot_nav.hex\" \
+		-DUART_DIV=217 -DNAV_MAX_CYCLES=3000000 -DNAV_TIME_LIMIT_NS=200000000 -DNAV_POST_PASS_CYCLES=1000000 \
+		-o $(ROOT_DIR)/sim/tb_soc_nav_div217.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/wdt_kick_monitor.v
+	$(VVP) $(ROOT_DIR)/sim/tb_soc_nav_div217.vvp
+
 test_cosim: firmware
 	@echo "--- Building and Running Closed-Loop Co-Simulation Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/soc_cosim.hex\" \
@@ -174,7 +185,7 @@ synth_check:
 clean:
 	rm -f $(ROOT_DIR)/sim/*.vvp $(ROOT_DIR)/sim/*.vcd
 
-.PHONY: test_rom_layout test_wdt_negative
+.PHONY: test_rom_layout test_wdt_negative test_nav_div217
 test_rom_layout: firmware
 	python3 $(ROOT_DIR)/sw/test/test_rom_layout.py && python3 $(ROOT_DIR)/sw/test/test_rom_layout.py --selftest
 	python3 $(ROOT_DIR)/sw/test/test_nav_expected.py

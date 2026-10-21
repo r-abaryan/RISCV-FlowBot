@@ -21,13 +21,21 @@ _start:
     /* Initialize stack pointer to top of 16KB SRAM */
     li   sp, 0x20003FFC
 
+    /* Watchdog budget (M11b). CLK_HZ is the NOMINAL ULX3S 25 MHz oscillator used
+     * directly by fpga/ulx3s/ulx3s_top.v (no PLL); it is NOT yet measured on the
+     * board (B1/U5 open). The timeout value itself is unchanged (500,000 cycles);
+     * only its derivation and comment are corrected (old comment said 50 MHz). */
+    .equ CLK_HZ,             25000000
+    .equ WDT_TIMEOUT_MS,     20
+    .equ WDT_TIMEOUT_CYCLES, (CLK_HZ / 1000) * WDT_TIMEOUT_MS
+
     /* ------------------------------------------------------------------------
      * 1. Initialize Hardware Safety Interlock
      * ------------------------------------------------------------------------ */
     /* Offsets per rtl/safety/safety_filter.v (M7A): 0x00 CTRL, 0x04 HEARTBEAT,
      * 0x08 STATUS (RO), 0x0C TIMEOUT. Sequence: timeout, enable|clear, heartbeat. */
     li   t0, 0x50000600       /* ADDR_SAFETY_BASE */
-    li   t1, 500000           /* Watchdog limit (500k cycles = 10 ms @ 50 MHz) */
+    li   t1, WDT_TIMEOUT_CYCLES /* 500,000 cycles = 20 ms at the nominal 25 MHz ULX3S clock */
     sw   t1, 0x0C(t0)         /* SAFETY_TIMEOUT */
     li   t1, 3                /* enable | clear trip */
     sw   t1, 0x00(t0)         /* SAFETY_CTRL */
@@ -412,8 +420,16 @@ clamp_r_max:
 /* ============================================================================
  * UART Helper Functions
  * ============================================================================ */
+/* M11b: uart_puts blocks on TX-busy for every byte. Without a heartbeat here a
+ * long string (e.g. the 162-byte pass banner) at the board divider 217 holds the
+ * CPU ~351k cycles without kicking, and the watchdog expired after PASS.
+ * The key is written once per byte, only AFTER the TX-busy wait completes, so a
+ * UART that never becomes ready still stops the heartbeat and trips the watchdog.
+ * Worst-case kick gap inside this loop is ~1 byte time (10 * divider cycles).
+ * Clobbers t0-t3, a0 (caller-saved). */
 uart_puts:
     li   t0, 0x50000100       /* UART Base */
+    li   t3, 0x5AFEC0DE       /* heartbeat key */
 puts_loop:
     lbu  t1, 0(a0)
     beqz t1, puts_done
@@ -421,6 +437,8 @@ puts_wait:
     lw   t2, 0x08(t0)         /* Status */
     andi t2, t2, 1            /* TX busy */
     bnez t2, puts_wait
+    li   t2, 0x50000604       /* SAFETY_HEARTBEAT */
+    sw   t3, 0(t2)            /* kick: UART made progress */
     sw   t1, 0x00(t0)         /* Send character */
     addi a0, a0, 1
     j    puts_loop
@@ -465,12 +483,16 @@ uart_puthex_word:
     addi sp, sp, 16
     ret
 
+/* Clobbers t0-t3 (caller-saved). Same heartbeat rule as uart_puts. */
 uart_put_nibble:
     li   t0, 0x50000100
 wait_nib:
     lw   t1, 0x08(t0)
     andi t1, t1, 1
     bnez t1, wait_nib
+    li   t2, 0x50000604       /* SAFETY_HEARTBEAT: kick after TX-ready (M11b) */
+    li   t3, 0x5AFEC0DE
+    sw   t3, 0(t2)
     la   t2, hex_digits
     add  t2, t2, a0
     lbu  t3, 0(t2)

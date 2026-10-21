@@ -3,8 +3,10 @@
 # Expect tb_soc_nav to $fatal with "watchdog tripped unexpectedly"; script succeeds only then.
 set -e
 R=$(cd "$(dirname "$0")/.." && pwd); T=$(mktemp -d); cd "$T"
-sed 's/li   t1, 500000 .*/li   t1, 2000/' "$R/sw/firmware/robot_nav_firmware.s" > nav_short.s
-grep -q "li   t1, 2000" nav_short.s
+# M11b: the timeout is now the named constant WDT_TIMEOUT_CYCLES; override its definition.
+sed 's/^\( *\.equ WDT_TIMEOUT_CYCLES,\).*/\1 2000/' "$R/sw/firmware/robot_nav_firmware.s" > nav_short.s
+grep -q "^ *\.equ WDT_TIMEOUT_CYCLES, 2000$" nav_short.s
+grep -q "li   t1, WDT_TIMEOUT_CYCLES" nav_short.s
 riscv-none-elf-as -I "$R/sw/firmware" -march=rv32im -mabi=ilp32 nav_short.s -o n.o
 riscv-none-elf-ld -m elf32lriscv -T "$R/sw/firmware/linker.ld" n.o -o n.elf
 riscv-none-elf-objcopy -O binary n.elf n.bin

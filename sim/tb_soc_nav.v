@@ -16,6 +16,19 @@
 `ifndef UART_DIV
 `define UART_DIV 16
 `endif
+// Test-only overrides (defaults unchanged): cycle budget and $time watchdog.
+// Used by make test_nav_div217 (M11b) to run at board baud (UART_DIV=217).
+`ifndef NAV_MAX_CYCLES
+`define NAV_MAX_CYCLES 1000000
+`endif
+`ifndef NAV_TIME_LIMIT_NS
+`define NAV_TIME_LIMIT_NS 30000000
+`endif
+// Extra cycles to keep simulating after the CAFEBABE token (default 0 = old
+// behaviour). Lets the firmware's post-pass banner and halt loop be observed.
+`ifndef NAV_POST_PASS_CYCLES
+`define NAV_POST_PASS_CYCLES 0
+`endif
 module tb_soc_nav;
 
     reg clk;
@@ -34,8 +47,8 @@ module tb_soc_nav;
 
     // Testbench Watchdog Timeout (30ms simulation time)
     initial begin
-        #30000000;
-        $fatal(1, "[TB FATAL] Navigation simulation watchdog timeout reached (30ms)!");
+        #(`NAV_TIME_LIMIT_NS);
+        $fatal(1, "[TB FATAL] Navigation simulation watchdog timeout reached (%0d ns)!", `NAV_TIME_LIMIT_NS);
     end
 
     // DUT Instance with configurable ROM
@@ -141,8 +154,8 @@ module tb_soc_nav;
         rst_n = 1;
         $display("[TB] System reset deasserted at time %0t ns", $time);
 
-        // Simulation loop with 1,000,000 cycle timeout
-        while (cycle_count < 1000000 && !test_passed) begin
+        // Simulation loop with NAV_MAX_CYCLES timeout (default 1,000,000)
+        while (cycle_count < `NAV_MAX_CYCLES && !test_passed) begin
             @(posedge clk);
             cycle_count = cycle_count + 1;
 
@@ -151,6 +164,9 @@ module tb_soc_nav;
                 test_passed = 1;
             end
         end
+
+        // Optional post-pass observation window (test-only, default 0)
+        if (test_passed) repeat (`NAV_POST_PASS_CYCLES) @(posedge clk);
 
         // Wait a few cycles for final UART flush
         #500;
