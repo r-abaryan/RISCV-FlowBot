@@ -15,6 +15,12 @@
 // watchdog tripped, or if the longest refresh gap exceeds WDT_MAX_GAP_CYCLES
 // (default 250,000 = 50% of the firmware's 500,000-cycle timeout), or if no
 // refresh was ever seen. It prints [WDTMON-PASS] otherwise.
+// M11b M1 closure: [WDTMON-PASS] is printed ONLY on the normal path (the full
+// NAV_POST_PASS_CYCLES window after the CAFEBABE pass token). If the TB cycle
+// limit (NAV_MAX_CYCLES) or TB time limit (NAV_TIME_LIMIT_NS) ends the run
+// first, the monitor prints its summary followed by [WDTMON-INCOMPLETE] and
+// gives no PASS verdict; the TB then fails the run with $fatal as before.
+// sim/run_vvp_checked.sh treats [WDTMON-INCOMPLETE] / [WDTMON-FAIL] as failure.
 // Define WDTMON_VERBOSE to log every individual refresh (very long output).
 // ============================================================================
 `ifndef WDT_MAX_GAP_CYCLES
@@ -87,11 +93,19 @@ module wdt_kick_monitor;
             pass_seen <= 1'b1; pass_cyc <= cyc;
             $display("[WDTMON] cyc=%0d PASS token (CAFEBABE) observed by TB", cyc);
         end
-        if (pass_seen && cyc >= pass_cyc + `NAV_POST_PASS_CYCLES) summary;
-        if (tb_soc_nav.cycle_count == `NAV_MAX_CYCLES) summary;
+        if (pass_seen && cyc >= pass_cyc + `NAV_POST_PASS_CYCLES) summary(0);
+        if (tb_soc_nav.cycle_count == `NAV_MAX_CYCLES) summary(1);
+    end
+    // TB time-limit path: tb_soc_nav $fatal's at NAV_TIME_LIMIT_NS; emit the
+    // summary 1 ns earlier so the diagnostics are not lost (closure finding F2).
+    initial begin
+        #(`NAV_TIME_LIMIT_NS - 1);
+        summary(2);
     end
     reg summarized = 1'b0;
-    task summary;
+    // why: 0 = post-pass window complete (only path that may PASS),
+    //      1 = TB cycle limit reached, 2 = TB time limit about to fire.
+    task summary(input integer why);
         begin
             if (!summarized) begin
                 summarized = 1'b1;
@@ -99,7 +113,11 @@ module wdt_kick_monitor;
                          n_refresh, max_gap, max_gap_end, min_cd, min_cd_at, timeout_val_at_min,
                          min_cd, (min_cd*100)/timeout_val_at_min, ((min_cd*1000)/timeout_val_at_min)%10,
                          `SF.flag_tripped, `SF.flag_wdt_expired, cyc);
-                if (`SF.flag_tripped || reported_trip)
+                if (why != 0)
+                    $display("[WDTMON-INCOMPLETE] run ended by TB %0s before the post-pass window completed (pass_token_seen=%0b, tripped=%0b, max_gap=%0d); NO PASS verdict",
+                             (why == 1) ? "cycle limit (NAV_MAX_CYCLES)" : "time limit (NAV_TIME_LIMIT_NS)",
+                             pass_seen, (`SF.flag_tripped || reported_trip), max_gap);
+                else if (`SF.flag_tripped || reported_trip)
                     $fatal(1, "[WDTMON-FAIL] watchdog/E-stop trip observed (wdt_expired=%0b)", `SF.flag_wdt_expired);
                 else if (n_refresh < 2)
                     $fatal(1, "[WDTMON-FAIL] fewer than 2 watchdog refreshes observed (%0d)", n_refresh);

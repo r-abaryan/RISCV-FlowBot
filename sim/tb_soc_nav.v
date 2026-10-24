@@ -48,6 +48,10 @@ module tb_soc_nav;
     // Testbench Watchdog Timeout (30ms simulation time)
     initial begin
         #(`NAV_TIME_LIMIT_NS);
+        // M11b M1 closure: state dump so a time-limit failure is diagnosable.
+        $display("[TB] TIME LIMIT: cycles=%0d test_passed=%0b RAM[4095]=0x%08x trap=%0b disarm=%0b wdt_expired=%0b pwm_cmd L=%0d R=%0d",
+                 cycle_count, test_passed, dut.u_ram.ram_mem[4095], dut.u_cpu.trap, actuator_disarm,
+                 dut.u_safety.flag_wdt_expired, pwm_left_cmd, pwm_right_cmd);
         $fatal(1, "[TB FATAL] Navigation simulation watchdog timeout reached (%0d ns)!", `NAV_TIME_LIMIT_NS);
     end
 

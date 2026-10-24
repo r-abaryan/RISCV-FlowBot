@@ -13,7 +13,8 @@ riscv-none-elf-objcopy -O binary n.elf n.bin
 python3 "$R/sw/firmware/make_hex.py" n.bin n.hex
 SRCS=$(find "$R/rtl" -name "*.v" ! -name "ibex_wb_adapter.v" | sort)
 iverilog -I"$R/rtl" -DROM_INIT_FILE=\"$T/n.hex\" -o n.vvp $SRCS "$R/sim/tb_soc_nav.v"
-set +e; vvp n.vvp > out.log 2>&1; rc=$?; set -e
+set +e; vvp -N n.vvp > out.log 2>&1; rc=$?; set -e
 cat out.log | tail -5
+case $rc in 124|137|143) echo "NEGATIVE TEST FAIL (vvp killed by signal, rc=$rc)"; exit 1;; esac
 grep -q "watchdog tripped unexpectedly" out.log && [ $rc -ne 0 ] && echo "NEGATIVE TEST PASS (rc=$rc, trip detected)" && exit 0
 echo "NEGATIVE TEST FAIL"; exit 1
