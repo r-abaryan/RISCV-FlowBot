@@ -249,20 +249,25 @@ test_cosim: firmware
 		-o $(ROOT_DIR)/sim/tb_soc_cosim.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_cosim.v
 	$(PYTHON) $(ROOT_DIR)/sim/soc_closed_loop_cosim.py --steps 10 --episodes 1
 
-test_rtl: test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc test_uart
+test_rtl: audit_pipes test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc test_uart
 
 # D-B UART unit test (divider 8)
+# M11b harness fix 1: a simulator piped into tee/grep loses its exit status, so a TB that
+# prints its PASS marker and then hits $$fatal would still pass. Fail if any such pipe remains.
+audit_pipes:
+	@if grep -nE '^[[:space:]].*\$$\(VVP\)[^|#]*\|' $(ROOT_DIR)/sim/Makefile; then \
+		echo "audit_pipes: FAIL - pipe after \$$(VVP) masks the simulator exit status; use \$$(VVP_CHECKED)"; exit 1; \
+	else echo "audit_pipes: PASS - no \$$(VVP) output pipes"; fi
+
 test_uart:
 	@echo "--- Running UART unit testbench (divider 8) ---"
 	$(IVERILOG) -g2012 -o $(ROOT_DIR)/sim/tb_soc_uart.vvp $(ROOT_DIR)/rtl/periph/soc_uart.v $(ROOT_DIR)/sim/tb_soc_uart.v
-	$(VVP) $(ROOT_DIR)/sim/tb_soc_uart.vvp | tee $(ROOT_DIR)/sim/tb_soc_uart.log
-	@grep -q "TB_SOC_UART PASS" $(ROOT_DIR)/sim/tb_soc_uart.log
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_soc_uart.log --require "TB_SOC_UART PASS" --require "fails=0" $(ROOT_DIR)/sim/tb_soc_uart.vvp
 
 # ULX3S wrapper pin-decode test (slow, ~minutes; not in test_rtl). Run from repo root cwd.
 test_ulx3s_top:
 	cd $(ROOT_DIR) && $(IVERILOG) -g2012 -I rtl -o sim/tb_ulx3s_top.vvp $(RTL_SRCS) fpga/ulx3s/ulx3s_top.v sim/tb_ulx3s_top.v
-	cd $(ROOT_DIR) && $(VVP) sim/tb_ulx3s_top.vvp | tee sim/tb_ulx3s_top.log
-	@grep -q "fails=0" $(ROOT_DIR)/sim/tb_ulx3s_top.log
+	cd $(ROOT_DIR) && $(VVP_CHECKED) --log sim/tb_ulx3s_top.log --require "fails=0" --require "nrx=" sim/tb_ulx3s_top.vvp
 
 synth_check:
 	@echo "--- Running Yosys RTL Syntax & Elaboration Check ---"
@@ -271,7 +276,7 @@ synth_check:
 clean:
 	rm -f $(ROOT_DIR)/sim/*.vvp $(ROOT_DIR)/sim/*.vcd
 
-.PHONY: test_rom_layout test_wdt_negative test_nav_div217 test_wdt_uart_stall char_pwm_idle test_sim_termination test_vvp_runner
+.PHONY: audit_pipes test_rom_layout test_wdt_negative test_nav_div217 test_wdt_uart_stall char_pwm_idle test_sim_termination test_vvp_runner
 test_rom_layout: firmware
 	python3 $(ROOT_DIR)/sw/test/test_rom_layout.py && python3 $(ROOT_DIR)/sw/test/test_rom_layout.py --selftest
 	python3 $(ROOT_DIR)/sw/test/test_nav_expected.py

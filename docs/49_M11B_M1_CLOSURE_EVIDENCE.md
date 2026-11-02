@@ -122,3 +122,19 @@ writer verification, an RTL actuator-command freshness timeout, sign-magnitude c
 representation and PWM frequency, reset/disarm/coast/brake/enable semantics, and pin-level and
 negative-control tests. The detailed proposal is prepared separately for owner review. None of it
 is implemented on this branch.
+
+## 7. Harness fix 1 (2026-11-02): no simulator output pipes
+Problem: `test_uart` and `test_ulx3s_top` ran `$(VVP) ... | tee log` followed by `grep` for a PASS
+marker. The pipe drops the simulator exit status, so a testbench that prints its PASS marker and then
+hits `$fatal` (or is killed) still passed. Reproduced with a 1-line TB (PASS marker, then `$fatal`):
+old pattern rc=0, checked runner rc=1.
+
+Change (harness only, no RTL/firmware change):
+- Both targets now use `$(VVP_CHECKED)` with the same markers (`TB_SOC_UART PASS` + `fails=0`;
+  `fails=0` + `nrx=`).
+- New `make audit_pipes` fails if any `$(VVP)` command line in `sim/Makefile` is piped. It is a
+  prerequisite of `test_rtl`. Negative control: against the previous Makefile it reports both lines.
+
+Results (Icarus Verilog 12.0, agent host, simulation only): `audit_pipes` PASS; runner self-test
+PASS (9/9); `make test_uart` CHECKED PASS (fails=0); `make test_ulx3s_top` CHECKED PASS (nrx=89,
+frame_err=0, mism=0, fails=0, 34 s). Harness fixes 2-4 are not done yet.
