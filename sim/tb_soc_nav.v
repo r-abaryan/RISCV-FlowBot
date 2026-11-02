@@ -42,17 +42,23 @@ module tb_soc_nav;
     wire [15:0] pwm_right_cmd;
     wire actuator_disarm;
 
-    // Clock generation: 50 MHz (20ns period)
+    // Clock generation: 50 MHz SIM clock (20 ns period).
+    // M11b harness fix 4: the target board runs at 25 MHz. The WDT budget, UART
+    // divider and PWM period are all counted in clock cycles, so results here are
+    // CYCLE-EQUIVALENT to the board; nominal board time = cycles / 25 MHz (board
+    // clock frequency itself not yet verified, B1). Every ns value printed by this
+    // TB (incl. NAV_TIME_LIMIT_NS) is SIM time = half the nominal board time.
+    // UART_DIV=217 is 115200 baud only at 25 MHz (230400 baud in sim time).
     always #10 clk = ~clk;
 
-    // Testbench Watchdog Timeout (30ms simulation time)
+    // Testbench time limit, in SIM ns (default 30 ms sim time)
     initial begin
         #(`NAV_TIME_LIMIT_NS);
         // M11b M1 closure: state dump so a time-limit failure is diagnosable.
         $display("[TB] TIME LIMIT: cycles=%0d test_passed=%0b RAM[4095]=0x%08x trap=%0b disarm=%0b wdt_expired=%0b pwm_cmd L=%0d R=%0d",
                  cycle_count, test_passed, dut.u_ram.ram_mem[4095], dut.u_cpu.trap, actuator_disarm,
                  dut.u_safety.flag_wdt_expired, pwm_left_cmd, pwm_right_cmd);
-        $fatal(1, "[TB FATAL] Navigation simulation watchdog timeout reached (%0d ns)!", `NAV_TIME_LIMIT_NS);
+        $fatal(1, "[TB FATAL] Navigation simulation watchdog timeout reached (%0d sim ns)!", `NAV_TIME_LIMIT_NS);
     end
 
     // DUT Instance with configurable ROM
@@ -103,11 +109,11 @@ module tb_soc_nav;
                 if (dut.u_nna.u_regs.reg_m_dim == 16'd2) begin
                     nna_v_history[nna_inference_count] <= dut.u_nna.u_regs.out_buf[0][7:0];
                     nna_w_history[nna_inference_count] <= dut.u_nna.u_regs.out_buf[0][15:8];
-                    $display("[TB ASSERT] NNA completed Layer 2 inference #%0d: v_raw=0x%02x, w_raw=0x%02x at time %0t ns",
+                    $display("[TB ASSERT] NNA completed Layer 2 inference #%0d: v_raw=0x%02x, w_raw=0x%02x at sim time %0t (cycle %0d)",
                              nna_inference_count + 1,
                              dut.u_nna.u_regs.out_buf[0][7:0],
                              dut.u_nna.u_regs.out_buf[0][15:8],
-                             $time);
+                             $time, cycle_count);
                     nna_inference_count <= nna_inference_count + 1;
                 end
             end
@@ -121,11 +127,11 @@ module tb_soc_nav;
             // Captured write to DUTY_RIGHT (completes left/right pair write)
             pwm_left_history[pwm_write_count]  <= dut.u_pwm.reg_left_duty;
             pwm_right_history[pwm_write_count] <= dut.u_pwm.wb_dat_i[15:0];
-            $display("[TB ASSERT] PWM Duty Cycle Written #%0d: Left=0x%04x (%0d), Right=0x%04x (%0d) at time %0t ns",
+            $display("[TB ASSERT] PWM Duty Cycle Written #%0d: Left=0x%04x (%0d), Right=0x%04x (%0d) at sim time %0t (cycle %0d)",
                      pwm_write_count + 1,
                      dut.u_pwm.reg_left_duty, dut.u_pwm.reg_left_duty,
                      dut.u_pwm.wb_dat_i[15:0], dut.u_pwm.wb_dat_i[15:0],
-                     $time);
+                     $time, cycle_count);
             pwm_write_count <= pwm_write_count + 1;
         end
     end
@@ -133,8 +139,8 @@ module tb_soc_nav;
     // Safety watchdog trip check (ensure watchdog never trips spuriously during valid run)
     always @(posedge clk) begin
         if (rst_n && dut.u_safety.flag_wdt_expired) begin
-            $fatal(1, "[TB FATAL] Safety watchdog tripped unexpectedly at time %0t ns! Disarm=%0b",
-                   $time, actuator_disarm);
+            $fatal(1, "[TB FATAL] Safety watchdog tripped unexpectedly at sim time %0t (cycle %0d)! Disarm=%0b",
+                   $time, cycle_count, actuator_disarm);
         end
     end
 
@@ -148,15 +154,20 @@ module tb_soc_nav;
         cycle_count = 0;
         test_passed = 0;
 
+        // %t prints in ns with the unit (the TB precision is 1 ps, so the old
+        // bare %0t printed ps values that were labelled "ns").
+        $timeformat(-9, 0, " ns", 0);
         $display("\n=======================================================");
         $display("   STARTING RISC-V ROBOT NAVIGATION SOC SIMULATION     ");
         $display("   ROM: %s", `ROM_INIT_FILE);
+        $display("   sim clk 50 MHz; results cycle-equivalent; nominal board time = cycles / 25 MHz (B1 open)");
+        $display("   UART_DIV=%0d, NAV_TIME_LIMIT_NS=%0d (sim ns)", `UART_DIV, `NAV_TIME_LIMIT_NS);
         $display("=======================================================");
 
         // Hold reset for 5 cycles
         #100;
         rst_n = 1;
-        $display("[TB] System reset deasserted at time %0t ns", $time);
+        $display("[TB] System reset deasserted at sim time %0t", $time);
 
         // Simulation loop with NAV_MAX_CYCLES timeout (default 1,000,000)
         while (cycle_count < `NAV_MAX_CYCLES && !test_passed) begin

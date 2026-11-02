@@ -63,7 +63,7 @@ So a stuck UART does not keep the watchdog alive. **Not run at divider 217.**
 
 ### 2.3 Idle-state PWM persistence (characterization, not acceptance)
 `make char_pwm_idle` (bounded windows, see section 5), exit code 0 for each:
-- div 16 (`CHAR_POST_PASS=200000 CHAR_PROBE_WIN=131072`): `en=1 dutyL=410 dutyR=589 disarm=0 writes_after_pass=0`; pin high L=820/131073 (6,256 ppm = 0.63%), R=1178/131073 (8,987 ppm = 0.90%).
+- div 16 (`CHAR_POST_PASS=200000 CHAR_PROBE_WIN=131072`): `en=1 dutyL=410 dutyR=589 disarm=0 writes_after_pass=0`; pin high L=820/131072 (6,256 ppm = 0.63%), R=1178/131072 (8,987 ppm = 0.90%). (The original run sampled 131,073 cycles because of the probe off-by-one fixed in section 9; re-run after the fix gives the same high counts over exactly 131,072.)
 - div 217 (`CHAR_DIVS=217 CHAR_POST_PASS=70000 CHAR_PROBE_WIN=65536`): same register state, 410/589 high counts per period (6,256 / 8,987 ppm), `writes_after_pass=0`.
 
 After the pass token the last command stays applied with the gate enabled, and nothing writes
@@ -168,3 +168,40 @@ Results (Icarus Verilog 12.0, agent host, simulation only): runner self-test PAS
 (negative control, 190 s); `make test_sim_termination` T1-T3 CHECKED PASS (negative control, 60 s);
 `make test_nav` CHECKED PASS (positive mode unchanged, 21 s); `audit_pipes` PASS. Not run: the full
 `test_rtl` set and the div217 full-window run. Harness fixes 3 and 4 are not done yet.
+
+## 9. Harness fixes 3 and 4 (2026-11-02): probe window size and sim-clock labels
+Test-harness and label changes only. No RTL, firmware or safety behaviour changed, and no
+pass/fail marker used by the Makefile changed.
+
+**Fix 3: `pwm_idle_probe.v` sampled `PROBE_WIN + 1` cycles.** The window start used `>=`, so the
+logs said "last 131073 cycles" for `PROBE_WIN=131072`. The start is now strict (`>`), the probe
+`$fatal`s if the sample count is not exactly `PROBE_WIN`, and it prints the exact window
+(`[PWMPROBE-END] window cyc=A..B (N samples, pass token at cyc=P)`). The extra sample had been a
+low cycle, so the high counts were already right; only the denominator was off by one.
+Re-run after the fix (MEASURED, simulation, exit code 0 each):
+- div 16, `CHAR_POST_PASS=200000 CHAR_PROBE_WIN=131072`: window cyc 191,201..322,272 = 131,072
+  samples (pass token cyc 122,274); L=820, R=1178 (6,256 / 8,987 ppm). Register state as in 2.3.
+- div 217, same settings: window 1,174,281..1,305,352 = 131,072 samples; L=820, R=1178.
+- div 217, `CHAR_POST_PASS=70000 CHAR_PROBE_WIN=65536`: window 1,109,817..1,175,352 = 65,536
+  samples (pass token cyc 1,105,354); L=410, R=589 (6,256 / 8,987 ppm).
+
+**Fix 4: `tb_soc_nav` time labels.** The TB clock is 50 MHz (`#10`, 20 ns), the board clock is
+25 MHz. The watchdog budget, UART divider and PWM period are all counted in clock cycles, so the
+cycle counts are **cycle-equivalent** to the board. Nominal board time = cycles / 25 MHz, which
+assumes the board clock is really 25 MHz (B1, still unverified). Every ns value the TB prints,
+including `NAV_TIME_LIMIT_NS`, is **simulation time**, half the nominal board time. `UART_DIV=217`
+is 115,200 baud only at 25 MHz (in sim time it is 230,400).
+A label bug was found as well: with `timescale 1ns/1ps`, a bare `%0t` prints picoseconds, so
+messages such as "NNA completed ... at time 1234000 ns" were 1000x too large. The TB now calls
+`$timeformat(-9, 0, " ns", 0)`, writes "sim time" and adds the cycle number to these messages, and
+prints a header line with the clock assumption, `UART_DIV` and `NAV_TIME_LIMIT_NS`. Cycle numbers in
+this document (sections 2.1 to 2.4) were already cycles and are not affected.
+
+Regressions run after fixes 3 and 4 (simulation, exit code 0 each): `make test_nav` (CHECKED PASS,
+23 s), `audit_pipes`, `test_vvp_runner` (runner self-test PASS), `test_sim_termination` (t1, t2, t3
+all fail as expected), `test_wdt_negative` (trip detected on the terminal FATAL line), and the three
+`char_pwm_idle` runs above.
+Not run in this pass: `test_wdt_uart_stall`, full-window `test_nav_div217` (1M window; still the PR
+gate, needs a normal host or CI), `test_rtl` / `all`. The new `n != PROBE_WIN` check has no
+negative test of its own.
+
