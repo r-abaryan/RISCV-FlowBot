@@ -186,13 +186,13 @@ test_wdt_uart_stall: firmware
 	$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=16 $(NAV_LONG_DEFS) -DSTALL_MODE=0 \
 		-o $(ROOT_DIR)/sim/tb_uart_stall_m0.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/uart_stall_inject.v
 	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_uart_stall_m0.log \
-		--expect-fail "flag_wdt_expired=1 disarm=1 pwm_cmd L=0 R=0" --expect-fail "watchdog tripped unexpectedly" \
+		--expect-fail "watchdog tripped unexpectedly" --expect-seen "flag_wdt_expired=1 disarm=1 pwm_cmd L=0 R=0" \
 		$(ROOT_DIR)/sim/tb_uart_stall_m0.vvp
 	@echo "--- UART-stall negative control, mode 1 (stuck at pass token) ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=16 $(NAV_LONG_DEFS) -DSTALL_MODE=1 \
 		-o $(ROOT_DIR)/sim/tb_uart_stall_m1.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/uart_stall_inject.v
 	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_uart_stall_m1.log \
-		--expect-fail "flag_wdt_expired=1 disarm=1 pwm_cmd L=0 R=0" --expect-fail "watchdog tripped unexpectedly" \
+		--expect-fail "watchdog tripped unexpectedly" --expect-seen "flag_wdt_expired=1 disarm=1 pwm_cmd L=0 R=0" \
 		$(ROOT_DIR)/sim/tb_uart_stall_m1.vvp
 
 # Characterization (NOT an acceptance test): records the known idle-state PWM
@@ -219,7 +219,9 @@ char_pwm_idle: firmware
 	done
 
 # Termination-path checks: each run is deliberately broken and MUST fail with a
-# non-signal exit code and no PASS verdict.
+# non-signal exit code and no PASS verdict. --expect-fail markers must be on the
+# single terminal FATAL: line; --expect-seen markers are context printed earlier
+# (M11b harness fix 2: an interrupted run has rc=1 but no FATAL: line).
 #  T1 gap budget 100 cycles (< any real gap), 50k-cycle window -> [WDTMON-FAIL]
 #  T2 NAV_MAX_CYCLES=60000 (< pass token ~122k; the TB cycle counter stops at
 #     the pass token, so the limit only applies before it) -> [WDTMON-INCOMPLETE] cycle limit
@@ -230,12 +232,13 @@ test_sim_termination: firmware
 	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_term_t1.log --expect-fail "[WDTMON-FAIL] max refresh gap" $(ROOT_DIR)/sim/tb_term_t1.vvp
 	$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=16 -DNAV_MAX_CYCLES=60000 -DNAV_TIME_LIMIT_NS=200000000 -DNAV_POST_PASS_CYCLES=1000000 \
 		-o $(ROOT_DIR)/sim/tb_term_t2.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/wdt_kick_monitor.v
-	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_term_t2.log --expect-fail "[WDTMON-INCOMPLETE] run ended by TB cycle limit" $(ROOT_DIR)/sim/tb_term_t2.vvp
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_term_t2.log --expect-fail "[TB FATAL] Navigation policy test failed due to timeout" \
+		--expect-seen "[WDTMON-INCOMPLETE] run ended by TB cycle limit" $(ROOT_DIR)/sim/tb_term_t2.vvp
 	@! grep -q "WDTMON-PASS" $(ROOT_DIR)/sim/tb_term_t2.log
 	$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=16 -DNAV_MAX_CYCLES=3000000 -DNAV_TIME_LIMIT_NS=2000000 -DNAV_POST_PASS_CYCLES=1000000 \
 		-o $(ROOT_DIR)/sim/tb_term_t3.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/wdt_kick_monitor.v
-	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_term_t3.log --expect-fail "[WDTMON-INCOMPLETE] run ended by TB time limit" \
-		--expect-fail "[TB] TIME LIMIT:" $(ROOT_DIR)/sim/tb_term_t3.vvp
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_term_t3.log --expect-fail "[TB FATAL] Navigation simulation watchdog timeout reached" \
+		--expect-seen "[WDTMON-INCOMPLETE] run ended by TB time limit" --expect-seen "[TB] TIME LIMIT:" $(ROOT_DIR)/sim/tb_term_t3.vvp
 	@! grep -q "WDTMON-PASS" $(ROOT_DIR)/sim/tb_term_t3.log
 
 # Self-test of the checked runner itself (seconds): a run killed by SIGTERM, a

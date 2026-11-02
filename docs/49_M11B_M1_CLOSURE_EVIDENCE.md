@@ -21,7 +21,7 @@ Labels used below:
 
 | File | Kind | Purpose |
 |---|---|---|
-| `sim/run_vvp_checked.sh` | runner | Runs `vvp -N`. Positive mode: PASS only if exit code is 0, **every** `--require` marker is in the log, and there is no `FATAL` / `[WDTMON-FAIL]` / `[WDTMON-INCOMPLETE]`. Negative mode (`--expect-fail`): PASS only if exit code is non-zero, **not** a kill/timeout code (124 or >128), and every expected marker is present. |
+| `sim/run_vvp_checked.sh` | runner | Runs `vvp -N`. Positive mode: PASS only if exit code is 0, **every** `--require` marker is in the log, and there is no `FATAL` / `[WDTMON-FAIL]` / `[WDTMON-INCOMPLETE]`. Negative mode (`--expect-fail`): PASS only if exit code is non-zero, **not** a kill/timeout code (124 or >128), exactly one terminal `FATAL:` line that carries every `--expect-fail` marker, every `--expect-seen` context marker somewhere in the log, and no interrupt artefacts (harness fix 2, section 8). |
 | `sim/test_run_vvp_checked.sh` | runner self-test | SIGTERM-killed run, SIGKILL-killed run, missing marker, `$fatal` and usage errors must be handled correctly. |
 | `sim/uart_stall_inject.v` | test-only module | Forces `u_uart.busy=1` from reset (`STALL_MODE=0`) or from the pass token (`STALL_MODE=1`); logs `[STALL]` lines when the watchdog trips. |
 | `sim/pwm_idle_probe.v` | test-only module | After the pass token: counts PWM register writes, measures pin high-time over a `PROBE_WIN` window, prints `[PWMPROBE-END]`. Fatal if the window does not fit or is empty. |
@@ -137,4 +137,34 @@ Change (harness only, no RTL/firmware change):
 
 Results (Icarus Verilog 12.0, agent host, simulation only): `audit_pipes` PASS; runner self-test
 PASS (9/9); `make test_uart` CHECKED PASS (fails=0); `make test_ulx3s_top` CHECKED PASS (nrx=89,
-frame_err=0, mism=0, fails=0, 34 s). Harness fixes 2-4 are not done yet.
+frame_err=0, mism=0, fails=0, 34 s).
+
+## 8. Harness fix 2 (2026-11-02): negative controls must end on the expected `$fatal`
+Problem: with `vvp -N`, SIGINT/SIGTERM/SIGHUP give rc=1, the same as `$fatal`. A negative control
+only needed rc!=0 (not 124/>128) and its markers *anywhere* in the log. A context marker printed
+early (for example `[WDTMON-INCOMPLETE]` from a `final` block, or the UART-stall disarm line)
+plus an external interrupt therefore gave `CHECKED PASS (negative control)` with no failure at all.
+Reproduced: a TB that prints `[MARK]` early and calls `$fatal` much later, interrupted with
+`timeout --preserve-status -s INT 2 vvp` -> old runner `CHECKED PASS`, new runner `CHECKED FAIL`.
+
+Change (harness only, no RTL/firmware change):
+- `--expect-fail MARKER` must now be on the single terminal `FATAL:` line. A log with zero or
+  more than one `FATAL:` line fails. Logs with `VVP Stop` / `Flushing output streams` /
+  `** Continue` (interactive/interrupt output) fail.
+- New `--expect-seen MARKER` (negative mode only) for context printed elsewhere in the log.
+- Callers migrated: UART-stall m0/m1 expect `watchdog tripped unexpectedly` on the FATAL line, with
+  the disarm/PWM-zero line as `--expect-seen`; termination T2/T3 expect the TB timeout `$fatal`
+  text, with `[WDTMON-INCOMPLETE]` (and T3 `[TB] TIME LIMIT:`) as `--expect-seen`; T1 unchanged
+  (`[WDTMON-FAIL]` is already the FATAL line). `run_wdt_negative.sh` now uses the checked runner
+  instead of its own grep.
+- Runner self-test: 9 new cases (interrupt after early context marker with SIGINT and SIGTERM,
+  cause not on FATAL line, context present/missing, two FATAL lines, option misuse). The
+  interrupt, cause-not-on-FATAL and two-FATAL cases are accepted by the previous runner, i.e. the
+  new self-test fails against `dcbe761:sim/run_vvp_checked.sh` (7 of 18 cases), as intended.
+
+Results (Icarus Verilog 12.0, agent host, simulation only): runner self-test PASS (18/18);
+`make test_wdt_negative` PASS (trip on FATAL line; needed `riscv-none-elf-as` 2.44 from Alpine
+`binutils-riscv-none-elf`, firmware hex unchanged); `make test_wdt_uart_stall` m0 and m1 CHECKED PASS
+(negative control, 190 s); `make test_sim_termination` T1-T3 CHECKED PASS (negative control, 60 s);
+`make test_nav` CHECKED PASS (positive mode unchanged, 21 s); `audit_pipes` PASS. Not run: the full
+`test_rtl` set and the div217 full-window run. Harness fixes 3 and 4 are not done yet.
