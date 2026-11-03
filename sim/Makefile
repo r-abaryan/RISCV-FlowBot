@@ -294,3 +294,18 @@ test_nav_boundaries:
 test_front_sensor_mapping:
 	python3 ../sw/test/test_front_sensor_mapping.py
 .PHONY: test_nav_boundaries test_front_sensor_mapping
+
+# Strict ROM-bounds gate (test only). Prerequisites are enforced, not assumed:
+#  1. the RISC-V binutils must exist (no silent skip);
+#  2. `make firmware` rebuilds robot_nav.elf/.hex, and the rebuilt hex must equal the TRACKED
+#     robot_nav.hex (git diff), otherwise the hex==ELF comparison would be self-fulfilling;
+#  3. test_rom_bounds.py runs with REQUIRE_ELF=1 (any skipped check is exit 2);
+#  4. the negative controls must all trip with their expected FAIL text.
+.PHONY: test_rom_bounds
+test_rom_bounds: firmware
+	@command -v riscv-none-elf-readelf >/dev/null && command -v riscv-none-elf-objcopy >/dev/null \
+		|| { echo "FAIL test_rom_bounds: riscv-none-elf binutils missing (not a pass)"; exit 2; }
+	@cd $(ROOT_DIR) && git diff --quiet -- sw/firmware/robot_nav.hex \
+		|| { echo "FAIL test_rom_bounds: rebuilt robot_nav.hex differs from the tracked file"; exit 1; }
+	REQUIRE_ELF=1 $(PYTHON) $(ROOT_DIR)/sw/test/test_rom_bounds.py
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_rom_bounds_negative.py
