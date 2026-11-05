@@ -342,7 +342,17 @@ test_soc_pwm_unit:
 	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_soc_pwm_unit.log --require "[UNIT-PASS]" $(ROOT_DIR)/sim/tb_soc_pwm_unit.vvp
 .PHONY: test_soc_pwm_unit
 
+# M2 C4: static PWM-write allowlist scan of the shipped ROM images (robot_nav, soc_cosim).
+# Path-sensitive constant propagation over the hex; every store reaching 0x5000_02xx must be
+# an allowlisted (label, offset, source-register) site, no store base may be unresolved.
+# Static check of the image only, NOT a hardware enforcement (no MPU); see the script header.
+test_pwm_store_scan: firmware
+	@command -v riscv-none-elf-nm >/dev/null || { echo "FAIL test_pwm_store_scan: riscv-none-elf-nm missing (not a pass)"; exit 2; }
+	$(PYTHON) $(ROOT_DIR)/sw/test/pwm_store_scan.py
+	$(PYTHON) $(ROOT_DIR)/sw/test/pwm_store_scan_negative.py
+.PHONY: test_pwm_store_scan
+
 # Explicit, repeatable M2 PR verification gate (simulation only)
-m2_gate: test_soc_pwm_unit test_m2_integration test_safety test_safety_adv test_safety_hw test_wdt_negative test_motor_conv test_soc test_cosim test_nav test_nav_boundaries test_ulx3s_top test_rom_bounds
+m2_gate: test_soc_pwm_unit test_m2_integration test_safety test_safety_adv test_safety_hw test_wdt_negative test_motor_conv test_soc test_cosim test_nav test_nav_boundaries test_ulx3s_top test_rom_bounds test_pwm_store_scan
 	@echo "[M2_GATE PASS]"
 .PHONY: m2_gate

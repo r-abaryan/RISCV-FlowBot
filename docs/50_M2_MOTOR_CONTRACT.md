@@ -19,7 +19,9 @@ Reject reasons (STATUS bits 14:12): 1 KILL_EDGE, 2 FAULT, 3 DISARM_IN, 4 ARMED, 
 - make -C sim test_soc_pwm_unit: F1a-F1e (0x5 clean, 0x5 with fault latched, separate 0x4 then 0x1 arms, 0x7 while armed, reserved bits).
 - make -C sim test_m2_integration: W1-W3 WDT_TRIP visibility.
 - make -C sim m2_gate: the M2 regression set, including the safety targets.
-Not covered yet: exhaustive/random checks against an independent reference model (Stage 1, planned) and the static firmware CTRL-write allowlist check (C4, planned).
+Not covered yet: exhaustive/random checks against an independent reference model (Stage 1, planned).
+
+C4 static PWM-write allowlist (`make -C sim test_pwm_store_scan`, part of `m2_gate`): `sw/test/pwm_store_scan.py` decodes the shipped robot_nav.hex and soc_cosim.hex (RV32IM), runs a path-sensitive constant propagation from reset (calls/returns matched, stack words tracked, widening after 64 distinct values) and requires every store into 0x5000_0200..02FF to be an allowlisted (ELF label, register offset, source register) site, with no unresolved store base, no SYSTEM instruction and no unverifiable jalr. Allowlist: robot_nav 9 sites (arming at `_start`/`arm_wait_shadow`, DISARM at `arm_ok`, CMD_L/CMD_R/COMMIT at `safety_pass`); soc_cosim 9 sites (same arming, `safety_pass`, DISARM at `cosim_shutdown`). 12 negative controls (removed/retargeted store, changed value source, unresolved base, indirect jump, ecall) must all fail. Limits: static check of the image only. It is not hardware enforcement (PicoRV32 has no MPU) and cannot see RAM-executed or corrupted code. The RTL interlocks stay the real protection. soc_firmware.s (legacy smoke-test image) is not scanned.
 
 ## Appendix: contract v3 as approved 2026-11-03 (unchanged text)
 Its "DESIGN ONLY" header and branch/path lines are historical. Where v3.1 above differs, v3.1 wins.
