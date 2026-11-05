@@ -147,6 +147,22 @@ module tb_soc_pwm_unit;
         check(rd_v[2] && !rd_v[0] && !en, "range fault armed (-1001)");
         wr(8'h04, 16'h8000); rd(8'h04); check(rd_v == 0, "R2 CMD write discarded while faulted");
 
+        // ---- F1 (contract v3.1): ARM_REQ+FAULT_CLR in one CTRL write is rejected, reason 7 ----
+        wr(8'h00, 32'h2); wr(8'h00, 32'h4); wr(8'h04, 0); wr(8'h08, 0);   // disarm, clear prior fault, zero CMD
+        rd(8'h10); check(!rd_v[0] && !rd_v[1] && !rd_v[2], "F1 pre: disarmed, no fault");
+        wr(8'h00, 32'h5); rd(8'h10);
+        check(!rd_v[0] && rd_v[7] && rd_v[14:12] == 3'd7 && !en, "F1a 0x5 on clean state: not armed, reason 7");
+        wr(8'h04, 16'd1001); wr(8'h0C, 0); rd(8'h10); check(rd_v[2], "F1b pre: FAULT_RANGE latched");
+        wr(8'h00, 32'h5); rd(8'h10);
+        check(!rd_v[0] && rd_v[2] && rd_v[7] && rd_v[14:12] == 3'd7, "F1b 0x5 with fault: fault stays, reason 7");
+        wr(8'h00, 32'h4); wr(8'h00, 32'h1); rd(8'h10);
+        check(rd_v[0] && !rd_v[2] && !rd_v[7], "F1c separate 0x4 then 0x1 arms");
+        wr(8'h00, 32'h7); rd(8'h10);
+        check(!rd_v[0] && rd_v[7] && rd_v[14:12] == 3'd7 && !en, "F1d 0x7 while armed: DISARM acts, reason 7");
+        wr(8'h00, 32'h4); wr(8'h00, 32'hFFFF_FFF9); rd(8'h10);
+        check(rd_v[0] && !rd_v[7], "F1e reserved CTRL bits 31:3 ignored (0xFFFFFFF9 arms)");
+        wr(8'h00, 32'h2); rd(8'h10); check(!rd_v[0] && !en, "F1 post: disarmed");
+
         if (errors == 0) $display("[UNIT-PASS] soc_pwm directed unit tests, 0 failures");
         else $fatal(1, "FATAL: [UNIT-FAIL] %0d failures", errors);
         $finish;

@@ -12,6 +12,9 @@
 //
 // Register map (byte offsets):
 //   0x00 CTRL    W  bit0 ARM_REQ, bit1 DISARM, bit2 FAULT_CLR (reads 0)
+//                   bits31:3 reserved, ignored. v3.1: ARM_REQ+FAULT_CLR in the
+//                   same write (0x5/0x7) is rejected with reason 7: nothing is
+//                   armed or cleared; DISARM in 0x7 still acts.
 //   0x04 CMD_L   RW signed 16-bit staging value, sign-extended on read
 //   0x08 CMD_R   RW as CMD_L
 //   0x0C COMMIT  W  any value: atomic CMD_L/R -> ACTIVE_L/R (if allowed)
@@ -25,7 +28,10 @@
 //   0x1C PERIOD  RO PERIOD
 //   others: read 0, writes ignored.
 //
-// Per-edge priority (contract v3 section 3):
+// Reject reasons: 1 KILL_EDGE, 2 FAULT, 3 DISARM_IN, 4 ARMED, 5 ACTIVE_NZ,
+//   6 CMD_NZ, 7 COMBINED (ARM_REQ+FAULT_CLR; wins over all others).
+//
+// Per-edge priority (contract v3.1 section 3):
 //   0 async reset
 //   1 KILL = disarm_in | stale_hit | range_bad | CTRL.DISARM | fault latched
 //      -> ARMED, ACTIVE, SHADOW, CMD <= 0; latch causes; same-edge
@@ -86,7 +92,8 @@ module soc_pwm #(
                      RJ_DISARM_IN   = 3'd3,  // safety_filter disarming / E-stop live
                      RJ_ARMED       = 3'd4,  // already armed
                      RJ_ACTIVE_NZ   = 3'd5,  // ACTIVE or SHADOW non-zero
-                     RJ_CMD_NZ      = 3'd6;  // staged CMD non-zero
+                     RJ_CMD_NZ      = 3'd6,  // staged CMD non-zero
+                     RJ_COMBINED    = 3'd7;  // ARM_REQ and FAULT_CLR in the same CTRL write (v3.1)
 
     // ------------------------------------------------------------------
     // State
@@ -119,6 +126,8 @@ module soc_pwm #(
     wire ctl_arm   = wr_ctrl && wb_dat_i[0];
     wire ctl_dis   = wr_ctrl && wb_dat_i[1];
     wire ctl_fclr  = wr_ctrl && wb_dat_i[2];
+    // v3.1: ARM_REQ+FAULT_CLR in one write is a request error: neither acts (DISARM still acts)
+    wire ctl_combo = ctl_arm && ctl_fclr;
 
     function in_range;
         input signed [15:0] v;
@@ -235,7 +244,11 @@ module soc_pwm #(
                 if (estop_in)  estop_seen  <= 1'b1;
 
                 if (wr_ctrl && (ctl_arm || ctl_fclr)) begin
-                    if (!kill_live && ctl_fclr && !ctl_dis) begin
+                    if (ctl_combo) begin
+                        // v3.1: combined request rejected, reason 7 wins; fault stays latched
+                        arm_rejected  <= 1'b1;
+                        reject_reason <= RJ_COMBINED;
+                    end else if (!kill_live && ctl_fclr && !ctl_dis) begin
                         // ---- Row 2 via R1 exception: only "fault latched" ----
                         if (fclr_reason == RJ_NONE) begin
                             fault_stale <= 1'b0;
@@ -255,15 +268,20 @@ module soc_pwm #(
                     end
                 end
             end else begin
+                if (ctl_combo) begin
+                    // v3.1: combined request rejected, nothing armed
+                    arm_rejected  <= 1'b1;
+                    reject_reason <= RJ_COMBINED;
+                end
                 // ---- Row 2: FAULT_CLR with no fault latched (nothing to clear) ----
-                if (ctl_fclr && fclr_reason != RJ_NONE) begin
+                else if (ctl_fclr && fclr_reason != RJ_NONE) begin
                     arm_rejected  <= 1'b1;
                     reject_reason <= fclr_reason;
                 end
 
                 // ---- Row 3: ARM_REQ ----
-                if (ctl_arm) begin
-                    if (arm_reason == RJ_NONE && !(ctl_fclr && fclr_reason != RJ_NONE)) begin
+                if (ctl_arm && !ctl_combo) begin
+                    if (arm_reason == RJ_NONE) begin
                         armed     <= 1'b1;
                         stale_cnt <= STALE_CYCLES;
                     end else if (arm_reason != RJ_NONE) begin
