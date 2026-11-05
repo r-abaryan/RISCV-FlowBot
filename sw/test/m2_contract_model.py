@@ -56,8 +56,8 @@ ASSUMPTIONS = {
            "any kill edge or while a fault is latched or disarm_in=1 is discarded (R2, R3).",
     "A12": "Reset is modelled as a synchronous step with rst=1 that yields the reset state; the async assertion "
            "itself is outside a cycle model (outputs() forces SAFE whenever rst=1).",
-    # Step 1b additions (NOT approved; pending owner review). Needed to compare RTL observables the contract text does not fix.
-    # Step 1b additions. Owner sign-off pending on the exact wording below (owner decisions 2026-11-05 F1/F2 applied).
+    # Step 1b additions A13-A16: APPROVED by the owner 2026-11-05 (A15 with the revised combinational-SAFE wording below).
+    # A3, A6, A7, A9, A11, A12 remain OPEN (not requirements); see docs/50_M2_MOTOR_CONTRACT.md "Contract-model assumptions".
     "A13": "STATUS (0x10) bit10 DISARM_IN is a live (combinational, unlatched) mirror of the disarm_in input, sampled into "
            "the registered read data on the ACK edge like every other STATUS bit. Bit11 and bits 31:15 read 0.",
     "A14": "Register map is read-only except CTRL (0x00, W, reads 0), CMD_L (0x04, RW), CMD_R (0x08, RW) and COMMIT "
@@ -67,7 +67,8 @@ ASSUMPTIONS = {
            "the 256-byte window 0. Writes to 0x10-0xFF have no effect. wb_dat_o holds its value between reads and is 0 "
            "after reset.",
     "A15": "Monitor outputs pwm_left_cmd/pwm_right_cmd = SHADOW_L/SHADOW_R (16-bit two's complement) while SAFE=0, and "
-           "exactly 0 while SAFE=1 (SAFE-gated, same edge as the PWM pins).",
+           "exactly 0 while SAFE=1. They use the same combinational SAFE condition as the PWM pins (registered flags plus "
+           "live disarm_in), so they can change within a cycle when disarm_in changes, not only on a clock edge.",
     "A16": "Wishbone timing (cycle-accurate): ACK is registered; a request is cyc&stb&!ack; a write acts on the same "
            "clock edge that sets ACK (v3 s3); ACK is high for exactly one cycle per request, so a held cyc&stb gives "
            "one transaction every 2 cycles. wb_sel_i is not decoded (C4 requires aligned 32-bit stores only); "
@@ -287,7 +288,7 @@ class Outputs:
 
 
 # STATUS bit positions as far as the contract documents fix them. None = not fixed by contract text (ambiguity Q1).
-# Owner decision Q1: ESTOP_SEEN = bit 8. bit10 DISARM_IN per A13 (pending).
+# Owner decision Q1: ESTOP_SEEN = bit 8. bit10 DISARM_IN per A13 (approved 2026-11-05).
 STATUS_BITS = {"armed": 0, "f_stale": 1, "f_range": 2, "wdt_trip": 3, "estop_live": 4, "safe": 5,
                "active_zero": 6, "arm_rej": 7, "estop_seen": 8, "shadow_zero": 9, "disarm_in": 10, "reason": (12, 14)}
 

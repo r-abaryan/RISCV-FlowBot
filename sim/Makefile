@@ -370,12 +370,13 @@ test_pwm_refmodel:
 .PHONY: test_pwm_refmodel
 
 # Explicit, repeatable M2 PR verification gate (simulation only)
-m2_gate: test_soc_pwm_unit test_pwm_refmodel test_m2_integration test_safety test_safety_adv test_safety_hw test_wdt_negative test_motor_conv test_soc test_cosim test_nav test_nav_boundaries test_ulx3s_top test_rom_bounds test_pwm_store_scan
+m2_gate: test_soc_pwm_unit test_pwm_refmodel test_m2_integration test_safety test_safety_adv test_safety_hw test_wdt_negative test_motor_conv test_soc test_cosim test_nav test_nav_boundaries test_ulx3s_top test_rom_bounds test_pwm_store_scan test_m2_soc_estop test_m2_vif
 	@echo "[M2_GATE PASS]"
 .PHONY: m2_gate
 
 # ---------------------------------------------------------------------------
-# M2 Stage 1 Step 1b (simulation only, test-only). Kept OUT of m2_gate (runtime); run explicitly.
+# M2 Stage 1 Step 1b (simulation only, test-only). test_m2_soc_estop and the short test_m2_vif are in m2_gate
+# (owner decision, Step 1c). The exhaustive test_m2_vif_full and test_m2_step1b stay OUT of m2_gate (runtime); run explicitly.
 # test_m2_soc_estop: real soc_top, S1 estop=>disarm, S2 wdt=>disarm, S3 shared E-stop net, + 4 broken-connection NCs (~50 s).
 test_m2_soc_estop: firmware
 	sh $(ROOT_DIR)/sim/run_m2_soc_estop.sh
