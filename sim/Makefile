@@ -342,14 +342,22 @@ test_soc_pwm_unit:
 	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_soc_pwm_unit.log --require "[UNIT-PASS]" $(ROOT_DIR)/sim/tb_soc_pwm_unit.vvp
 .PHONY: test_soc_pwm_unit
 
-# M2 C4: static PWM-write allowlist scan of the shipped ROM images (robot_nav, soc_cosim).
-# Path-sensitive constant propagation over the hex; every store reaching 0x5000_02xx must be
-# an allowlisted (label, offset, source-register) site, no store base may be unresolved.
-# Static check of the image only, NOT a hardware enforcement (no MPU); see the script header.
-test_pwm_store_scan: firmware
+# M2 C4: static PWM-write allowlist scan of the ROM images robot_nav, soc_cosim, firmware
+# (soc_firmware.s via assemble.py) and conv_test. Path-sensitive constant propagation over
+# the hex: every store reaching the PWM window (re-derived from rtl/bus/soc_interconnect.v)
+# must be an allowlisted (label, offset, source-register) aligned sw; any unresolved store
+# base fails closed. Provenance of each tracked hex is checked first (sw/test/fw_provenance.py).
+# Static check of the image only, NOT hardware enforcement (no MPU); see the script header.
+# Deliberately NOT dependent on `firmware`: it must not rewrite tracked outputs. Missing or
+# stale prerequisites (on-disk ELF/BIN, toolchain) fail with rc 2; tracked sw/firmware/*.hex
+# are hashed before and after and must be unchanged.
+test_pwm_store_scan:
 	@command -v riscv-none-elf-nm >/dev/null || { echo "FAIL test_pwm_store_scan: riscv-none-elf-nm missing (not a pass)"; exit 2; }
-	$(PYTHON) $(ROOT_DIR)/sw/test/pwm_store_scan.py
-	$(PYTHON) $(ROOT_DIR)/sw/test/pwm_store_scan_negative.py
+	@cd $(ROOT_DIR) && sums=$$(mktemp) && sha256sum sw/firmware/*.hex > $$sums && \
+		$(PYTHON) sw/test/pwm_store_scan.py && \
+		$(PYTHON) sw/test/pwm_store_scan_negative.py && \
+		{ sha256sum -c --quiet $$sums || { echo "FAIL test_pwm_store_scan: tracked firmware hex modified during verification"; rm -f $$sums; exit 1; }; } && \
+		rm -f $$sums && echo "[PWM-SCAN] tracked sw/firmware/*.hex unchanged by verification"
 .PHONY: test_pwm_store_scan
 
 # Explicit, repeatable M2 PR verification gate (simulation only)
