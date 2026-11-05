@@ -57,7 +57,10 @@ ASSUMPTIONS = {
     "A12": "Reset is modelled as a synchronous step with rst=1 that yields the reset state; the async assertion "
            "itself is outside a cycle model (outputs() forces SAFE whenever rst=1).",
     # Step 1b additions A13-A16: APPROVED by the owner 2026-11-05 (A15 with the revised combinational-SAFE wording below).
-    # A3, A6, A7, A9, A11, A12 remain OPEN (not requirements); see docs/50_M2_MOTOR_CONTRACT.md "Contract-model assumptions".
+    # Owner 2026-11-06: A3, A6, A7, A11 APPROVED as written. A9 APPROVED with distinction (ARM_REQ: ACTIVE+SHADOW;
+    # FAULT_CLR: ACTIVE only, after ARMED; this model's stricter FAULT_CLR check is equivalent on reachable states).
+    # A12 is a verification-method limitation, not a contract rule (contract keeps async reset assertion).
+    # See docs/50_M2_MOTOR_CONTRACT.md "Contract-model assumptions".
     "A13": "STATUS (0x10) bit10 DISARM_IN is a live (combinational, unlatched) mirror of the disarm_in input, sampled into "
            "the registered read data on the ACK edge like every other STATUS bit. Bit11 and bits 31:15 read 0.",
     "A14": "Register map is read-only except CTRL (0x00, W, reads 0), CMD_L (0x04, RW), CMD_R (0x08, RW) and COMMIT "
