@@ -373,3 +373,31 @@ test_pwm_refmodel:
 m2_gate: test_soc_pwm_unit test_pwm_refmodel test_m2_integration test_safety test_safety_adv test_safety_hw test_wdt_negative test_motor_conv test_soc test_cosim test_nav test_nav_boundaries test_ulx3s_top test_rom_bounds test_pwm_store_scan
 	@echo "[M2_GATE PASS]"
 .PHONY: m2_gate
+
+# ---------------------------------------------------------------------------
+# M2 Stage 1 Step 1b (simulation only, test-only). Kept OUT of m2_gate (runtime); run explicitly.
+# test_m2_soc_estop: real soc_top, S1 estop=>disarm, S2 wdt=>disarm, S3 shared E-stop net, + 4 broken-connection NCs (~50 s).
+test_m2_soc_estop: firmware
+	sh $(ROOT_DIR)/sim/run_m2_soc_estop.sh
+# test_m2_vif: V-IF3 (49 pairs) + V-IF1 at PERIOD 1000/1250 for -50..50 + V-IF2 sampled raw 32000..34000 (both sides) + NCs (~3 min).
+test_m2_vif:
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF3 1000 $(ROOT_DIR)/sim/m2_vif3.log
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF1 1000 $(ROOT_DIR)/sim/m2_vif1_1000.log +LO=-50 +HI=50 +MODES=7
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF1 1250 $(ROOT_DIR)/sim/m2_vif1_1250.log +LO=-50 +HI=50 +MODES=7
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF2 1000 $(ROOT_DIR)/sim/m2_vif2_s.log +LO=32000 +HI=34000 +SIDES=3
+	sh $(ROOT_DIR)/sim/run_m2_vif_nc.sh
+	@echo "[TEST_M2_VIF PASS] sampled shards + NCs (the exhaustive set is test_m2_vif_full)"
+# test_m2_vif_full: exhaustive V-IF1 (2,001 values x 3 patterns, PERIOD 1000 and 1250) and V-IF2 (63,535 invalid values per
+# side), ~70 min at 0.25 vCPU. Run the shards one by one if a single shell call is time-limited.
+VIF2_SHARDS = 0:16383 16384:32767 32768:49151 49152:65535
+test_m2_vif_full:
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF1 1000 $(ROOT_DIR)/sim/m2_vif1_full_1000.log +LO=-1000 +HI=1000 +MODES=7
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF1 1250 $(ROOT_DIR)/sim/m2_vif1_full_1250.log +LO=-1000 +HI=1000 +MODES=7
+	for s in 1 2; do for r in $(VIF2_SHARDS); do \
+	  sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF2 1000 $(ROOT_DIR)/sim/m2_vif2_full_$$s_$${r%:*}.log +LO=$${r%:*} +HI=$${r#*:} +SIDES=$$s || exit 1; \
+	done; done
+	@echo "[TEST_M2_VIF_FULL PASS]"
+# test_m2_step1b: RTL vs independent contract model (sw/test/m2_contract_model.py) incl. 17 planted errors (~10 min).
+test_m2_step1b:
+	$(PYTHON) -u $(ROOT_DIR)/sw/test/test_m2_step1b_rtl.py
+.PHONY: test_m2_soc_estop test_m2_vif test_m2_vif_full test_m2_step1b

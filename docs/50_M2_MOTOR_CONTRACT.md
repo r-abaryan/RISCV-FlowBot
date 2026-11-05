@@ -15,6 +15,49 @@ d. STATUS bit3 WDT_TRIP is a live mirror of the safety_filter watchdog-expired s
 
 Reject reasons (STATUS bits 14:12): 1 KILL_EDGE, 2 FAULT, 3 DISARM_IN, 4 ARMED, 5 ACTIVE_NZ, 6 CMD_NZ, 7 COMBINED.
 
+STATUS (0x10, RO) bit assignment (normative; owner decision Q1, 2026-11-05):
+| bit | name | kind |
+|---|---|---|
+| 0 | ARMED | latched state |
+| 1 | FAULT_STALE | latched fault |
+| 2 | FAULT_RANGE | latched fault |
+| 3 | WDT_TRIP | live mirror (safety_filter wdt_expired, status only) |
+| 4 | ESTOP | live mirror of estop_in |
+| 5 | SAFE | live (combinational) |
+| 6 | ACTIVE_ZERO | state-derived |
+| 7 | ARM_REJECTED | sticky until next CTRL write |
+| 8 | ESTOP_SEEN | latched fault; cleared only by an accepted FAULT_CLR with estop_live=0 |
+| 9 | SHADOW_ZERO | state-derived |
+| 10 | DISARM_IN | live mirror of disarm_in (owner confirmed 2026-11-05; wording A13) |
+| 14:12 | reject reason | sticky with bit 7 |
+| 11, 31:15 | 0 | reserved |
+
+Reject-reason priority (owner decision Q3, 2026-11-05; replaces numeric order): 7 COMBINED first; on a KILL edge a live kill
+term (disarm_in, stale_hit, CTRL.DISARM in the same write) gives 1 KILL_EDGE, also when a fault is latched (ARM_REQ with a
+latched fault plus live disarm_in -> 1, not 2); ARM_REQ with only a latched fault -> 2; otherwise the row 2/3 preconditions in
+listed order (4 ARMED, 5 ACTIVE_NZ, 6 CMD_NZ). Reason 3 and reason 5 are unreachable in reachable SoC states (Q2: reason 5 may
+remain unreachable; no RTL change). Reason 3 is likewise unreachable under valid integrated operation (owner decision 2026-11-05);
+both stay documented, no artificial path is added.
+
+Register map, read side (normative v3.1 clarification, owner decision F1, 2026-11-05). Only CTRL (0x00, W, reads 0), CMD_L (0x04, RW),
+CMD_R (0x08, RW) and COMMIT (0x0C, W, reads 0) are writable; everything else is read-only and writes to it have no effect.
+| offset | read value |
+|---|---|
+| 0x00, 0x0C | 0 |
+| 0x04 / 0x08 | CMD_L / CMD_R sign-extended to 32 bit |
+| 0x10 | STATUS (table above) |
+| 0x14 | {ACTIVE_R[15:0], ACTIVE_L[15:0]} |
+| 0x18 | PARAMS = STALE_CYCLES |
+| 0x1C | PERIOD (RO). Added by this clarification; replaces the v2 rule "unused offsets read 0" for 0x1C only |
+| any other offset in the 256-byte window | 0 |
+
+Integrated-SoC input validity (owner decision F2, 2026-11-05). In soc_top, actuator_disarm = !rst_n | !enable | flag_tripped |
+pin_estop_button is combinational from the same synchronised E-stop net that drives soc_pwm.estop_in, and flag_wdt_expired is only
+ever set together with flag_tripped. So estop_in=1 with disarm_in=0, and wdt_trip_in=1 with disarm_in=0, are INVALID integrated-SoC
+input combinations. soc_pwm on its own does not treat estop_in as a kill term (it relies on disarm_in); the unit-level counterexample
+is kept in the Step 1b report. This is checked by make -C sim test_m2_soc_estop (assertions S1 estop=>disarm, S2 wdt=>disarm,
+S3 shared E-stop net, on every edge of the real soc_top, plus 4 broken-connection negative controls). No production RTL change.
+
 ## Verification (simulation)
 - make -C sim test_soc_pwm_unit: F1a-F1e (0x5 clean, 0x5 with fault latched, separate 0x4 then 0x1 arms, 0x7 while armed, reserved bits).
 - make -C sim test_m2_integration: W1-W3 WDT_TRIP visibility.
