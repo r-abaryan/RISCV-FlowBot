@@ -254,15 +254,13 @@ module soc_pwm #(
                             fault_stale <= 1'b0;
                             fault_range <= 1'b0;
                             estop_seen  <= 1'b0;
-                            if (ctl_arm) begin   // ARM_REQ in same write: evaluated pre-edge -> fault
-                                arm_rejected  <= 1'b1;
-                                reject_reason <= RJ_FAULT;
-                            end
+                            // (ARM_REQ in the same write is ctl_combo, handled above.)
                         end else begin
                             arm_rejected  <= 1'b1;
                             reject_reason <= fclr_reason;
                         end
-                    end else if (!(ctl_dis && !ctl_arm && !ctl_fclr)) begin
+                    end else begin
+                        // outer guard (ctl_arm || ctl_fclr) holds here
                         arm_rejected  <= 1'b1;
                         reject_reason <= kill_live ? RJ_KILL_EDGE : RJ_FAULT;
                     end
@@ -284,7 +282,7 @@ module soc_pwm #(
                     if (arm_reason == RJ_NONE) begin
                         armed     <= 1'b1;
                         stale_cnt <= STALE_CYCLES;
-                    end else if (arm_reason != RJ_NONE) begin
+                    end else begin
                         arm_rejected  <= 1'b1;
                         reject_reason <= arm_reason;
                     end
