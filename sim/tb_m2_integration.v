@@ -1,6 +1,6 @@
 // M11b M2 step 3d: integration TB, safety_filter + soc_pwm wired exactly as in
 // rtl/soc_top.v (disarm_in <= actuator_disarm, estop_in <= !ext_estop_n,
-// wdt_trip_in <= 0). Simulation only. Small PERIOD/STALE/WDT values for speed.
+// wdt_trip_in <= safety_filter.wdt_expired_o). Simulation only. Small PERIOD/STALE/WDT values for speed.
 // Checks:
 //   I1 zero -> 0       : zero-arm gives armed, EN on, PWM pins low for a full period
 //   I2 atomic          : CMD_L/CMD_R staged without COMMIT do not reach the pins;
@@ -38,7 +38,7 @@ module tb_m2_integration;
         .clk(clk), .rst_n(rst_n), .pin_estop_button(estop_tripped),
         .bus_req(sreq), .bus_we(swe), .bus_addr(saddr), .bus_wdata(swdata),
         .bus_wstrb(4'hF), .bus_rdata(srdata), .bus_ready(sready),
-        .actuator_disarm(actuator_disarm));
+        .actuator_disarm(actuator_disarm), .wdt_expired_o(wdt_expired));
 
 `ifdef NC_NO_DISARM
     wire disarm_to_pwm = 1'b0;
@@ -48,10 +48,11 @@ module tb_m2_integration;
     soc_pwm #(.PERIOD(PERIOD), .STALE_CYCLES(STALE)) u_pwm (
         .clk(clk), .rst_n(rst_n), .wb_adr_i(adr), .wb_dat_i(dat), .wb_dat_o(rdat),
         .wb_we_i(we), .wb_sel_i(4'hF), .wb_stb_i(stb), .wb_cyc_i(cyc), .wb_ack_o(ack),
-        .disarm_in(disarm_to_pwm), .estop_in(estop_tripped), .wdt_trip_in(1'b0),
+        .disarm_in(disarm_to_pwm), .estop_in(estop_tripped), .wdt_trip_in(wdt_expired),
         .pwm_left_out(pl), .pwm_right_out(pr), .dir_left_out(dl), .dir_right_out(dr),
         .motor_en_out(en), .pwm_left_cmd(cl), .pwm_right_cmd(cr));
 
+    wire wdt_expired;
     integer errors = 0;
     task check(input cond, input [8*72-1:0] msg);
         begin if (!cond) begin errors = errors + 1; $display("[INT-FAIL] %0s t=%0t", msg, $time); end
@@ -77,6 +78,14 @@ module tb_m2_integration;
         begin
             @(negedge clk); saddr = {24'h500006, a}; swdata = d; swe = 1; sreq = 1;
             @(posedge clk); #1; sreq = 0; swe = 0;
+        end
+    endtask
+    reg [31:0] srd_v;
+    task srd(input [7:0] a);                   // safety_filter read (combinational rdata)
+        begin
+            @(negedge clk); saddr = {24'h500006, a}; swe = 0; sreq = 1;
+            #1; srd_v = srdata;
+            @(posedge clk); #1; sreq = 0;
         end
     endtask
     task kick; swr(8'h04, 32'h5AFE_C0DE); endtask
@@ -134,10 +143,13 @@ module tb_m2_integration;
         @(negedge clk);
         check(!en && !pl && !pr && cl == 0 && cr == 0, "I3 pins/EN/cmd low after WDT trip");
         rd(8'h14); check(rd_v == 0, "I3 ACTIVE cleared");
+        rd(8'h10); check(rd_v[3] == 1'b1, "W1 STATUS.WDT_TRIP mirrors WDT expiry");
+        srd(8'h08); check(srd_v[2] == 1'b1, "W1 SAFETY_STATUS[2] agrees");
 
         // ---- I4 no reactivation after safety_filter clear ----
         swr(8'h00, 32'h3); kick;              // enable + clear trip
         check(!actuator_disarm, "I4 safety_filter trip cleared (disarm_in=0)");
+        rd(8'h10); check(rd_v[3] == 1'b0, "W2 STATUS.WDT_TRIP clears with safety_filter clear");
         wr(8'h04, 400); wr(8'h0C, 0);         // staging/COMMIT while disarmed
         rd(8'h14); check(rd_v == 0, "I4 COMMIT while disarmed ignored");
         measure; check(hl == 0 && hr == 0 && !en, "I4 no reactivation: pins low, EN off");
@@ -175,6 +187,7 @@ module tb_m2_integration;
             if (k % 1000 == 0) begin wr(8'h0C, 0); k = k + 3; end
         end
         check(!u_pwm.armed && actuator_disarm && !u_pwm.fault_stale, "I7 WDT kill despite fresh COMMITs");
+        rd(8'h10); check(rd_v[3] == 1'b1, "W3 STATUS.WDT_TRIP set after I7 WDT kill");
         swr(8'h00, 32'h3); kick;
 
         // ---- I8 E-stop ----

@@ -335,3 +335,14 @@ test_m2_integration:
 	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_m2_integration_nc.log --expect-fail "[INT-FAIL]" --expect-seen "I3 soc_pwm disarmed within 1 edge" $(ROOT_DIR)/sim/tb_m2_integration_nc.vvp
 	@echo "[TEST_M2_INTEGRATION PASS] integration TB + negative control FAILed as required"
 .PHONY: test_m2_integration
+
+# M2 review of 55e35f3: soc_pwm directed unit TB as an explicit target
+test_soc_pwm_unit:
+	$(IVERILOG) -g2012 -o $(ROOT_DIR)/sim/tb_soc_pwm_unit.vvp $(ROOT_DIR)/rtl/periph/soc_pwm.v $(ROOT_DIR)/sim/tb_soc_pwm_unit.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_soc_pwm_unit.log --require "[UNIT-PASS]" $(ROOT_DIR)/sim/tb_soc_pwm_unit.vvp
+.PHONY: test_soc_pwm_unit
+
+# Explicit, repeatable M2 PR verification gate (simulation only)
+m2_gate: test_soc_pwm_unit test_m2_integration test_safety test_safety_adv test_safety_hw test_wdt_negative test_motor_conv test_soc test_cosim test_nav test_nav_boundaries test_ulx3s_top test_rom_bounds
+	@echo "[M2_GATE PASS]"
+.PHONY: m2_gate
