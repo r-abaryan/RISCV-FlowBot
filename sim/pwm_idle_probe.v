@@ -2,10 +2,11 @@
 // Observes the PWM block after the pass token: any duty/enable write, register
 // + gate state at end of the post-pass window, and the measured pin-high
 // fraction over the final PROBE_WIN cycles of the window.
-// It documents a KNOWN DEFECT carried into Milestone 2: after the pass token
-// the firmware's idle loop leaves the last duty (L=410/R=589) and pwm_en=1 in
-// place while still feeding the watchdog. Milestone 2 is expected to turn this
-// into an assertion (explicit stop/clear before idle). Run via
+// M1 documented a defect: the idle loop left the last duty (L=410/R=589) and
+// pwm_en=1 in place. M2 (contract v3): firmware writes DISARM before idling, so
+// at the end of the post-pass window the probe now ASSERTS armed=0, ACTIVE=0,
+// SHADOW=0, motor_en_out=0, both PWM pins low for the whole window, and no PWM
+// writes other than DISARM after the pass token ($fatal otherwise). Run via
 // `make char_pwm_idle` (sim/Makefile); compiled with tb_soc_nav.v.
 `timescale 1ns / 1ps
 `ifndef PROBE_WIN
@@ -28,12 +29,15 @@ module pwm_idle_probe;
         c <= c + 1;
         if (tb_soc_nav.test_passed === 1'b1 && !pass_seen) begin
             pass_seen <= 1; pass_c <= c;
-            $display("[PWMPROBE] cyc=%0d pass: en=%0b dutyL=%0d dutyR=%0d disarm=%0b cmdL=%0d cmdR=%0d",
-                     c, `PW.pwm_en, `PW.reg_left_duty, `PW.reg_right_duty, `PW.disarm_in,
+            $display("[PWMPROBE] cyc=%0d pass: armed=%0b motor_en=%0b activeL=%0d activeR=%0d disarm=%0b cmdL=%0d cmdR=%0d",
+                     c, `PW.armed, `PW.motor_en_out, `PW.active_l, `PW.active_r, `PW.disarm_in,
                      `PW.pwm_left_cmd, `PW.pwm_right_cmd);
         end
         if (pass_seen && wr) begin
             wr_after = wr_after + 1;
+            if (!(`PW.wb_adr_i[7:0] == 8'h00 && `PW.wb_dat_i == 32'h2))
+                $fatal(1, "[PWMPROBE-FAIL] non-DISARM PWM write after pass: adr=0x%02x data=0x%08x",
+                       `PW.wb_adr_i[7:0], `PW.wb_dat_i);
             $display("[PWMPROBE] cyc=%0d PWM write after pass: adr=0x%02x data=%0d", c, `PW.wb_adr_i[7:0], `PW.wb_dat_i);
         end
         // Window = cycles pass_c+POST-WIN-1 .. pass_c+POST-2 inclusive = exactly
@@ -49,11 +53,16 @@ module pwm_idle_probe;
                 $fatal(1, "[PWMPROBE-ERROR] window has %0d samples, expected PROBE_WIN=%0d", n, `PROBE_WIN);
             $display("[PWMPROBE-END] window cyc=%0d..%0d (%0d samples, pass token at cyc=%0d)",
                      win_start, c, n, pass_c);
-            $display("[PWMPROBE-END] cyc=%0d en=%0b dutyL=%0d dutyR=%0d disarm=%0b wdt_expired=%0b cmdL=%0d cmdR=%0d writes_after_pass=%0d",
-                     c, `PW.pwm_en, `PW.reg_left_duty, `PW.reg_right_duty, `PW.disarm_in,
+            $display("[PWMPROBE-END] cyc=%0d armed=%0b motor_en=%0b activeL=%0d activeR=%0d shadowL=%0d shadowR=%0d disarm=%0b wdt_expired=%0b cmdL=%0d cmdR=%0d writes_after_pass=%0d",
+                     c, `PW.armed, `PW.motor_en_out, `PW.active_l, `PW.active_r, `PW.shadow_l, `PW.shadow_r, `PW.disarm_in,
                      tb_soc_nav.dut.u_safety.flag_wdt_expired, `PW.pwm_left_cmd, `PW.pwm_right_cmd, wr_after);
             $display("[PWMPROBE-END] pin high over last %0d cycles: L=%0d (%0d ppm) R=%0d (%0d ppm)",
                      n, hiL, (hiL*64'd1000000)/n, hiR, (hiR*64'd1000000)/n);
+            if (`PW.armed !== 1'b0 || `PW.motor_en_out !== 1'b0 ||
+                `PW.active_l !== 16'sd0 || `PW.active_r !== 16'sd0 ||
+                `PW.shadow_l !== 16'sd0 || `PW.shadow_r !== 16'sd0 || hiL != 0 || hiR != 0)
+                $fatal(1, "[PWMPROBE-FAIL] idle state not safe after DISARM");
+            $display("[PWMPROBE-PASS] idle after DISARM: disarmed, ACTIVE/SHADOW=0, EN=0, pins low for %0d cycles", n);
         end
     end
 endmodule

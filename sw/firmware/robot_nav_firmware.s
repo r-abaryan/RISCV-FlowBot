@@ -48,13 +48,33 @@ _start:
     sw   zero, 4(t0)
 
     /* ------------------------------------------------------------------------
-     * 2. Initialize Dual PWM Motor Controller
+     * 2. Motor PWM (soc_pwm, M2 contract v3): exact zero-command arming
+     *    sequence (M2_STEP1_DECISIONS.md sec. C). SIMULATION ONLY.
+     *    1 FAULT_CLR  2 CMD_L=CMD_R=0  3 COMMIT (disarmed: ignored)
+     *    4 poll STATUS.SHADOW_ZERO  5 ARM_REQ  -> check STATUS.ARMED
+     *    If ARM is refused the firmware never commands motion: it prints
+     *    msg_arm_fail and goes to halt_loop (no PASS token).
      * ------------------------------------------------------------------------ */
     li   t0, 0x50000200       /* ADDR_PWM_BASE */
-    li   t1, 1                /* Enable bit = 1 */
-    sw   t1, 0x00(t0)         /* PWM_REG_CTRL = enable */
-    sw   zero, 0x04(t0)       /* PWM_REG_DUTY_LEFT = 0 */
-    sw   zero, 0x08(t0)       /* PWM_REG_DUTY_RIGHT = 0 */
+    li   t1, 4
+    sw   t1, 0x00(t0)         /* CTRL.FAULT_CLR */
+    sw   zero, 0x04(t0)       /* CMD_L = 0 */
+    sw   zero, 0x08(t0)       /* CMD_R = 0 */
+    sw   zero, 0x0C(t0)       /* COMMIT (ignored while disarmed) */
+    li   t2, 0x200            /* STATUS bit9 SHADOW_ZERO */
+arm_wait_shadow:
+    lw   t1, 0x10(t0)
+    and  t1, t1, t2
+    beqz t1, arm_wait_shadow
+    li   t1, 1
+    sw   t1, 0x00(t0)         /* CTRL.ARM_REQ */
+    lw   t1, 0x10(t0)
+    andi t1, t1, 1            /* STATUS bit0 ARMED */
+    bnez t1, arm_ok
+    la   a0, msg_arm_fail
+    jal  ra, uart_puts
+    j    halt_loop
+arm_ok:
 
     /* ------------------------------------------------------------------------
      * 3. Print Boot Banner over UART
@@ -95,6 +115,13 @@ _start:
     /* ------------------------------------------------------------------------
      * All Cases Complete - Print Pass Banner
      * ------------------------------------------------------------------------ */
+    /* Navigation done: DISARM the motor PWM (KILL -> ARMED/ACTIVE/SHADOW/CMD=0)
+     * before the idle loop, so the stale timer cannot fire while idle and the
+     * pins are at the zero state. */
+    li   t0, 0x50000200
+    li   t1, 2
+    sw   t1, 0x00(t0)         /* CTRL.DISARM */
+
     /* Write completion token 0xCAFEBABE to RAM at 0x20003FFC */
     li   t0, 0x20003FFC
     li   t1, 0xCAFEBABE
@@ -339,48 +366,23 @@ safety_pass:
     sw   t1, 0(t0)
 
     /* ------------------------------------------------------------------------
-     * STEP D: Differential Drive Kinematics & Motor PWM Generation
-     * v_L = v_safe - w_raw
-     * v_R = v_safe + w_raw
-     * Map signed [-128..127] to PWM Duty [0..1000]:
-     * duty = ((v_wheel + 128) * 1000) / 256
+     * STEP D: Differential drive + M2 sign-magnitude motor command (contract v3)
+     * v_L = v_safe - w_raw, v_R = v_safe + w_raw
+     * cmd = sign(v) * min(1000, (|v|*1000) >> 7)   (motor_cmd_conv, V-CONV)
+     * Write CMD_L, CMD_R then COMMIT (atomic ACTIVE update, stale reload).
+     * Telemetry PWM_L/PWM_R now print the signed CMD words (two's complement).
      * ------------------------------------------------------------------------ */
-    sub  t2, s2, s3           /* t2 = v_L */
-    add  t3, s2, s3           /* t3 = v_R */
+    sub  a0, s2, s3           /* v_L */
+    jal  ra, motor_cmd_conv
+    mv   s4, a0               /* s4 = cmd_L */
+    add  a0, s2, s3           /* v_R */
+    jal  ra, motor_cmd_conv
+    mv   s1, a0               /* s1 = cmd_R */
 
-    /* Compute Duty Left */
-    addi t2, t2, 128
-    li   t4, 1000
-    mul  t2, t2, t4
-    srai t2, t2, 8            /* / 256 */
-    /* Clamp 0..1000 */
-    bgez t2, clamp_l_min
-    li   t2, 0
-clamp_l_min:
-    ble  t2, t4, clamp_l_max
-    mv   t2, t4
-clamp_l_max:
-
-    /* Compute Duty Right */
-    addi t3, t3, 128
-    mul  t3, t3, t4
-    srai t3, t3, 8            /* / 256 */
-    /* Clamp 0..1000 */
-    bgez t3, clamp_r_min
-    li   t3, 0
-clamp_r_min:
-    ble  t3, t4, clamp_r_max
-    mv   t3, t4
-clamp_r_max:
-
-    /* Write to PWM registers */
     li   t0, 0x50000200
-    sw   t2, 0x04(t0)         /* DUTY_LEFT */
-    sw   t3, 0x08(t0)         /* DUTY_RIGHT */
-
-    /* Save computed values for telemetry: s2=v, s3=w, s4=duty_L, t3=duty_R */
-    mv   s4, t2
-    mv   s1, t3
+    sw   s4, 0x04(t0)         /* CMD_L */
+    sw   s1, 0x08(t0)         /* CMD_R */
+    sw   zero, 0x0C(t0)       /* COMMIT */
 
     /* ------------------------------------------------------------------------
      * STEP E: Print Telemetry over UART
@@ -502,6 +504,9 @@ wait_nib:
 /* ============================================================================
  * Constant Data & Weights
  * ============================================================================ */
+/* M2 wheel-command conversion (leaf, clobbers t0,t1,a0) */
+    .include "motor_cmd.inc"
+
     .section .rodata
 .balign 4
 hex_digits:
@@ -533,6 +538,9 @@ msg_telem_pwm_l:
 
 msg_telem_pwm_r:
     .asciz " | PWM_R: 0x"
+
+msg_arm_fail:
+    .asciz "[MOTOR] ARM refused - no motion commanded\n"
 
 msg_newline:
     .asciz "\n\n"

@@ -27,6 +27,11 @@ module soc_top #(
     output wire        pwm_right_out,
     output wire [15:0] pwm_left_cmd,
     output wire [15:0] pwm_right_cmd,
+    // M11b M2 sign-magnitude motor contract (logical levels; NOT pinned out on
+    // ULX3S yet: driver, polarity and pins are open, B3)
+    output wire        dir_left_out,
+    output wire        dir_right_out,
+    output wire        motor_en_out,
 
     // Hardware Safety Status
     output wire        actuator_disarm
@@ -371,6 +376,14 @@ module soc_top #(
         .wb_cyc_i      (pwm_cyc),
         .wb_ack_o      (pwm_ack),
         .disarm_in     (actuator_disarm),
+        .estop_in      (estop_tripped),
+        // safety_filter is not modified in M2 (contract v3), so its internal
+        // WDT trip flag is not exported. STATUS[3] therefore reads 0 here;
+        // firmware reads the WDT flag from safety_filter STATUS (0x50000608).
+        .wdt_trip_in   (1'b0),
+        .dir_left_out  (dir_left_out),
+        .dir_right_out (dir_right_out),
+        .motor_en_out  (motor_en_out),
         .pwm_left_cmd  (pwm_left_cmd),
         .pwm_right_cmd (pwm_right_cmd),
         .pwm_left_out  (pwm_left_out),

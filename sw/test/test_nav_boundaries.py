@@ -9,13 +9,14 @@ Needs: riscv-none-elf-as/ld/objcopy, iverilog, vvp."""
 import os, re, subprocess, sys, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from test_safety_c_mirror import f
+from motor_cmd_ref import motor_cmd
 R = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 FW = R + '/sw/firmware'
 def s8(x): return x-256 if x > 127 else x
 def dist_cm(w0, w1):
     q = [s8((w0 >> (8*i)) & 255) for i in (2, 3)] + [s8((w1 >> (8*i)) & 255) for i in (0, 1)]
     return max(0, ((min(q)+127)*403) >> 8)
-def duty(x): return max(0, min(1000, ((x+128)*1000) >> 8))
+def duty(x): return motor_cmd(x) & 0xFFFF   # M2 contract v3: signed CMD word as committed
 def frame(d3=0x64):
     """open corridor (all 0x64) except one front sensor (d3, byte 3 of word0) set to d3.
     Only one sensor is changed so the policy still wants to drive forward (raw v>0)."""
@@ -52,7 +53,7 @@ def inject(src, seq):
     src = src.replace(INJ_SRC_OLD, code)
     return src.replace(INJ_ZERO_OLD, INJ_ZERO_OLD + '    sw   zero, 16(t0)\n')
 _DUTY = {duty(x): x for x in range(-128, 128)}
-assert len(_DUTY) == 256            # duty() is injective on -128..127, so PWM decodes exactly
+assert len(_DUTY) == 256            # motor_cmd() is injective on -128..127, so CMD decodes exactly
 def decode_v(L, Rr):
     """Independent of the mirror: recover chassis v from PWM duties (left=v-w, right=v+w)."""
     xl, xr = _DUTY.get(L), _DUTY.get(Rr)
@@ -93,16 +94,17 @@ def patch_frames(src, frames):
     return src
 def run(tmp, src, frames):
     hexf = tmp+'/fw.hex'; build(patch_frames(src, frames), hexf)
-    # stop vvp as soon as the 3 ticks (+ initial PWM write) are logged: saves simulation time
+    # stop vvp as soon as the 3 ticks (+ arm-sequence zero COMMIT) are logged: saves simulation time
     pr = subprocess.Popen(['vvp', tmp+'/tb.vvp'], stdout=subprocess.PIPE, text=True, cwd=tmp)
     r = ''
     for line in pr.stdout:
         r += line
-        if r.count('PWM Duty Cycle Written') >= 4: break
+        if r.count('Motor COMMIT #') >= 4: break
     pr.kill(); pr.wait()
     raw = [(int(a, 16), int(b, 16)) for a, b in re.findall(r'v_raw=0x([0-9a-f]+), w_raw=0x([0-9a-f]+)', r)]
-    pwm = [(int(a, 16), int(b, 16)) for a, b in re.findall(r'Left=0x([0-9a-f]+) \(\d+\), Right=0x([0-9a-f]+)', r)]
-    return raw, pwm[1:]   # [0] is the PWM init write
+    pwm = [(int(a, 16), int(b, 16)) for a, b in re.findall(r'Motor COMMIT #\d+: CMD_L=0x([0-9a-f]+) \(-?\d+\), CMD_R=0x([0-9a-f]+)', r)]
+    if pwm and pwm[0] != (0, 0): return raw, [('arm-zero COMMIT not zero',)]
+    return raw, pwm[1:]   # [0] is the arm-sequence zero COMMIT
 def check(frames, raw, pwm):
     """Return list of failures comparing PWM with the reference filter on the real raw outputs."""
     errs = []

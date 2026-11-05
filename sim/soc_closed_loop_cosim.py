@@ -32,6 +32,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../sw/p
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../sw/model')))
 
 from robot_env import RobotEnv2D
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../sw/test')))
+from motor_cmd_ref import motor_cmd
 from reference_model import quantize_layer, ACT_RELU, ACT_CLIP
 
 class ReferencePolicyINT8:
@@ -146,6 +148,7 @@ def run_cosim(args):
     total_cycles = 0
     total_trips = 0
     max_discrepancy_lsb = 0
+    cmd_checks = 0
 
     t_start = time.time()
 
@@ -183,6 +186,19 @@ def run_cosim(args):
                 print(f"[ERROR] Step {st+1}: Discrepancy detected! SoC=({res['v_raw']}, {res['w_raw']}) Ref=({ref_v}, {ref_w})")
                 soc.close()
                 sys.exit(1)
+
+            # 4b. M2 motor-command parity: firmware CMD words (two's complement)
+            #     must equal motor_cmd(v_safe -/+ w_raw) (contract v3, motor_cmd_ref.py)
+            def _s32(x):
+                return x - (1 << 32) if x & 0x80000000 else x
+            exp_l = motor_cmd(res["v_cmd"] - res["w_raw"])
+            exp_r = motor_cmd(res["v_cmd"] + res["w_raw"])
+            got_l, got_r = _s32(res["pwm_l"]), _s32(res["pwm_r"])
+            if (got_l, got_r) != (exp_l, exp_r):
+                print(f"[ERROR] Step {st+1}: motor CMD mismatch SoC=({got_l}, {got_r}) Ref=({exp_l}, {exp_r})")
+                soc.close()
+                sys.exit(1)
+            cmd_checks += 1
 
             # 5. Track Safety Trip & Cycles
             if res["safety_trip"]:
@@ -244,6 +260,7 @@ def run_cosim(args):
     print(f"Total Steps Executed:         {total_steps}")
     print(f"Total Wall-Clock Time:        {t_total:.2f} s ({t_total/total_steps:.2f} s/step in simulation)")
     print(f"Max SoC Discrepancy (LSB):    {max_discrepancy_lsb} (Bit-Exact Match)")
+    print(f"Motor CMD parity checks:      {cmd_checks}/{total_steps} (firmware == motor_cmd_ref)")
     print(f"Total Safety Interventions:   {total_trips}")
     print(f"Mean Hardware Inference:      {avg_cycles:.1f} cycles ({avg_latency_us:.2f} microseconds @ 50 MHz)")
     print("=" * 78)
@@ -255,6 +272,7 @@ def run_cosim(args):
         "total_episodes": args.episodes,
         "wall_clock_time_sec": t_total,
         "max_discrepancy_lsb": max_discrepancy_lsb,
+        "motor_cmd_parity_checks": cmd_checks,
         "total_safety_trips": total_trips,
         "mean_cycles_per_step": avg_cycles,
         "hardware_latency_us_at_50mhz": avg_latency_us,
@@ -267,6 +285,7 @@ def run_cosim(args):
         print(f"Results written to: {args.output}")
 
     assert max_discrepancy_lsb == 0, f"Discrepancy detected: {max_discrepancy_lsb} LSB"
+    assert cmd_checks == total_steps, f"Motor CMD parity checked {cmd_checks}/{total_steps} steps"
     print("\nINTEGRATION PASS: SoC output bit-exact vs Python reference (0 LSB). This is NOT a navigation-success claim.")
     for e in all_episodes:
         print(f"Navigation outcome, episode {e['episode']}: {e['navigation_outcome']} after {e['steps']} steps")

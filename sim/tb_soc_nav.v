@@ -120,20 +120,31 @@ module tb_soc_nav;
         end
     end
 
-    // Monitor PWM register writes
+    // Monitor motor COMMIT writes (M2 contract v3, offset 0x0C). On the acking edge
+    // the staged CMD_L/CMD_R are the values being committed. History index 0 is the
+    // zero COMMIT of the arm sequence (issued while disarmed, so ignored by RTL).
+    // One cycle after each armed COMMIT, ACTIVE must equal the committed pair.
+    reg        commit_chk = 1'b0;
+    reg [15:0] commit_l_q, commit_r_q;
     always @(posedge clk) begin
+        commit_chk <= 1'b0;
         if (rst_n && dut.u_pwm.wb_cyc_i && dut.u_pwm.wb_stb_i && dut.u_pwm.wb_we_i &&
-            (dut.u_pwm.wb_adr_i[7:0] == 8'h08) && dut.u_pwm.wb_ack_o) begin
-            // Captured write to DUTY_RIGHT (completes left/right pair write)
-            pwm_left_history[pwm_write_count]  <= dut.u_pwm.reg_left_duty;
-            pwm_right_history[pwm_write_count] <= dut.u_pwm.wb_dat_i[15:0];
-            $display("[TB ASSERT] PWM Duty Cycle Written #%0d: Left=0x%04x (%0d), Right=0x%04x (%0d) at sim time %0t (cycle %0d)",
-                     pwm_write_count + 1,
-                     dut.u_pwm.reg_left_duty, dut.u_pwm.reg_left_duty,
-                     dut.u_pwm.wb_dat_i[15:0], dut.u_pwm.wb_dat_i[15:0],
-                     $time, cycle_count);
+            (dut.u_pwm.wb_adr_i[7:0] == 8'h0C) && dut.u_pwm.wb_ack_o) begin
+            pwm_left_history[pwm_write_count]  <= dut.u_pwm.cmd_l;
+            pwm_right_history[pwm_write_count] <= dut.u_pwm.cmd_r;
+            commit_l_q <= dut.u_pwm.cmd_l;
+            commit_r_q <= dut.u_pwm.cmd_r;
+            commit_chk <= dut.u_pwm.armed;
+            $display("[TB ASSERT] Motor COMMIT #%0d: CMD_L=0x%04x (%0d), CMD_R=0x%04x (%0d) armed=%0b at sim time %0t (cycle %0d)",
+                     pwm_write_count,
+                     dut.u_pwm.cmd_l, $signed(dut.u_pwm.cmd_l),
+                     dut.u_pwm.cmd_r, $signed(dut.u_pwm.cmd_r),
+                     dut.u_pwm.armed, $time, cycle_count);
             pwm_write_count <= pwm_write_count + 1;
         end
+        if (commit_chk && (dut.u_pwm.active_l !== commit_l_q || dut.u_pwm.active_r !== commit_r_q))
+            $fatal(1, "[TB FATAL] ACTIVE != committed CMD after armed COMMIT: ACTIVE L=0x%04x R=0x%04x, CMD L=0x%04x R=0x%04x",
+                   dut.u_pwm.active_l, dut.u_pwm.active_r, commit_l_q, commit_r_q);
     end
 
     // Safety watchdog trip check (ensure watchdog never trips spuriously during valid run)
@@ -219,42 +230,43 @@ module tb_soc_nav;
             end
             $display(" [ASSERT 4 PASS] Cycle 3 raw policy output verified: v=0x17 (+23), w=0x41 (+65)");
 
-            // 3. Assert Motor PWM commands and Safety Interlock
-            // History index 0 is initial zero PWM. Index 1, 2, 3 correspond to Cycle 1, 2, 3.
-            // M7B: expected values include the firmware safety filter (clamp 64, slew 8/tick,
-            // proximity). Cycle1: v 23->8 (slew), w=7. Cycle2: v -24->0 (slew from 8), w 127->64->15.
-            // Cycle3: wall at ~11 cm -> v=0, w 65->64->23. Reference: sw/test/test_nav_expected.py
-            // Cycle 1 PWM: forward drive with small right bias (w=+7)
-            if (pwm_left_history[1] != 16'h01f7 || pwm_right_history[1] != 16'h022e) begin
-                $fatal(1, "[TB FATAL] Cycle 1 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x01f7, 0x022e)",
+            // 3. Assert motor commands (M2 contract v3 signed CMD words) and safety interlock.
+            // History index 0 = zero COMMIT of the arm sequence; 1..3 = nav cycles 1..3.
+            // Firmware safety filter (clamp 64, slew 8/tick, proximity): Cycle1 v 23->8, w=7.
+            // Cycle2 v -24->0, w 127->64->15. Cycle3 wall ~11 cm -> v=0, w 65->64->23.
+            // cmd = sign(x)*min(1000,(|x|*1000)>>7), x = v-w (L), v+w (R).
+            // Reference: sw/test/test_nav_expected.py (uses sw/test/motor_cmd_ref.py).
+            if (pwm_write_count != 4)
+                $fatal(1, "[TB FATAL] expected 4 motor COMMITs (1 arm-zero + 3 nav), got %0d", pwm_write_count);
+            if (pwm_left_history[0] != 16'h0000 || pwm_right_history[0] != 16'h0000)
+                $fatal(1, "[TB FATAL] arm-sequence COMMIT not zero: L=0x%04x R=0x%04x", pwm_left_history[0], pwm_right_history[0]);
+            if (pwm_left_history[1] != 16'h0007 || pwm_right_history[1] != 16'h0075) begin
+                $fatal(1, "[TB FATAL] Cycle 1 CMD mismatch: got L=0x%04x, R=0x%04x (expected 0x0007, 0x0075)",
                        pwm_left_history[1], pwm_right_history[1]);
             end
-            $display(" [ASSERT 5 PASS] Cycle 1 PWM balanced forward drive: L=0x%04x, R=0x%04x",
-                     pwm_left_history[1], pwm_right_history[1]);
+            $display(" [ASSERT 5 PASS] Cycle 1 CMD forward drive, small right bias: L=%0d, R=%0d",
+                     $signed(pwm_left_history[1]), $signed(pwm_right_history[1]));
 
-            // Cycle 2 PWM: differential steer right (Right > Left, slew-limited)
-            if (pwm_left_history[2] != 16'h01b9 || pwm_right_history[2] != 16'h022e) begin
-                $fatal(1, "[TB FATAL] Cycle 2 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x01b9, 0x022e)",
+            if (pwm_left_history[2] != 16'hff8b || pwm_right_history[2] != 16'h0075) begin
+                $fatal(1, "[TB FATAL] Cycle 2 CMD mismatch: got L=0x%04x, R=0x%04x (expected 0xff8b, 0x0075)",
                        pwm_left_history[2], pwm_right_history[2]);
             end
-            $display(" [ASSERT 6 PASS] Cycle 2 PWM slew-limited right turn: L=0x01b9, R=0x%04x", pwm_right_history[2]);
+            $display(" [ASSERT 6 PASS] Cycle 2 CMD slew-limited turn in place: L=%0d, R=%0d",
+                     $signed(pwm_left_history[2]), $signed(pwm_right_history[2]));
 
-            // Cycle 3 Safety Override: front wall obstacle triggered firmware clamp
-            // v_cmd clamped to 0, differential turn in place
-            if (pwm_left_history[3] != 16'h019a || pwm_right_history[3] != 16'h024d) begin
-                $fatal(1, "[TB FATAL] Cycle 3 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x019a, 0x024d)",
+            if (pwm_left_history[3] != 16'hff4d || pwm_right_history[3] != 16'h00b3) begin
+                $fatal(1, "[TB FATAL] Cycle 3 CMD mismatch: got L=0x%04x, R=0x%04x (expected 0xff4d, 0x00b3)",
                        pwm_left_history[3], pwm_right_history[3]);
             end
-            // Stronger check: with raw v=+23, w=+65 and NO clamp the duties would be
-            // L=((23-65+128)*1000)>>8=0x014f, R=((23+65+128)*1000)>>8=0x034b. Require
-            // the clamp took effect (v=0 => L+R = 2*128*1000/256 within rounding of 1000).
-            if (pwm_left_history[3] == 16'h014f || pwm_right_history[3] == 16'h034b) begin
-                $fatal(1, "[TB FATAL] Cycle 3 PWM equals the UNCLAMPED value: safety override did not act");
-            end
-            if (pwm_left_history[3] + pwm_right_history[3] < 16'd998 || pwm_left_history[3] + pwm_right_history[3] > 16'd1000) begin
-                $fatal(1, "[TB FATAL] Cycle 3 L+R=%0d, not consistent with v_safe=0", pwm_left_history[3] + pwm_right_history[3]);
-            end
-            $display(" [ASSERT 7 PASS] Cycle 3 Safety Override verified: v_cmd clamped to 0, PWM L=0x019a, R=0x024d");
+            // Unclamped (raw v=+23, w=+65, no filter) would be L=cmd(-42)=-328 (0xfeb8),
+            // R=cmd(88)=687 (0x02af). v_safe=0 requires L == -R exactly.
+            if (pwm_left_history[3] == 16'hfeb8 || pwm_right_history[3] == 16'h02af)
+                $fatal(1, "[TB FATAL] Cycle 3 CMD equals the UNCLAMPED value: safety override did not act");
+            if ($signed(pwm_left_history[3]) != -$signed(pwm_right_history[3]))
+                $fatal(1, "[TB FATAL] Cycle 3 L=%0d R=%0d, not consistent with v_safe=0",
+                       $signed(pwm_left_history[3]), $signed(pwm_right_history[3]));
+            $display(" [ASSERT 7 PASS] Cycle 3 Safety Override verified: v_cmd clamped to 0, CMD L=%0d, R=%0d",
+                     $signed(pwm_left_history[3]), $signed(pwm_right_history[3]));
 
             // Final safety state assertions
             if (actuator_disarm != 1'b0) begin

@@ -70,16 +70,30 @@ data_elf, data_hex = elf_from('data', '.text\n_start: addi x0,x0,0\n.data\n.word
 abs_elf, abs_hex = elf_from('abs', '.equ BIGCONST, 0x017d7840\n.globl BIGCONST\n.text\n_start: addi x0,x0,0\n')
 older = f'{td}/old.elf'; shutil.copy(f'{FW}/robot_nav.elf', older)
 
-# readelf filter: move the highest .text symbol (case3_sensors) far beyond the image
-beyond = f"{shutil.which('sed')} 's/^\\( *[0-9]*: \\)0000086c\\(.*case3_sensors\\)$/\\100001ffc\\2/'"
+# readelf filter: move the highest .text symbol far beyond the image. The symbol and its
+# address are derived from the tracked ELF (not hardcoded), so firmware growth cannot
+# silently turn this control into a no-op.
+_tidx = None
+for _l in subprocess.check_output(['riscv-none-elf-readelf', '-SW', f'{FW}/robot_nav.elf'], text=True).splitlines():
+    _f = _l.replace('[ ', '[').split()
+    if len(_f) > 1 and _f[1] == '.text': _tidx = _f[0].strip('[]')
+_tsyms = []
+for _l in subprocess.check_output(['riscv-none-elf-readelf', '-sW', f'{FW}/robot_nav.elf'], text=True).splitlines():
+    _f = _l.split()
+    if len(_f) >= 8 and _f[0].endswith(':') and _f[3] in ('NOTYPE', 'FUNC', 'OBJECT') and _f[6] == _tidx:
+        _tsyms.append((int(_f[1], 16), _f[7]))
+if _tidx is None or not _tsyms:
+    print('FAIL: could not derive the highest .text symbol from robot_nav.elf'); sys.exit(1)
+hi_addr, hi_name = max(_tsyms)
+beyond = (f"{shutil.which('sed')} 's/^\\( *[0-9]*: \\){hi_addr:08x}\\(.*{hi_name}\\)$/\\100001ffc\\2/'")
 
 cases = [
     # name, env, PATH, expected rc, expected text
     ('positive: tracked hex+ELF', {}, None, 0, 'SUMMARY: 7 passed'),
     ('positive: ABS .equ symbol beyond image is excluded', {'ROM_HEX': abs_hex, 'ROM_ELF': abs_elf}, None, 0,
      '1 absolute symbols excluded'),
-    ('truncated hex (last word dropped)', {'ROM_HEX': hexfile('trunc', good[:-1])}, None, 1, 'FAIL hex 542 words != ELF .text'),
-    ('padded hex (extra NOP)', {'ROM_HEX': hexfile('pad', good + ['00000013'])}, None, 1, 'FAIL hex 544 words != ELF .text'),
+    ('truncated hex (last word dropped)', {'ROM_HEX': hexfile('trunc', good[:-1])}, None, 1, f'FAIL hex {len(good) - 1} words != ELF .text'),
+    ('padded hex (extra NOP)', {'ROM_HEX': hexfile('pad', good + ['00000013'])}, None, 1, f'FAIL hex {len(good) + 1} words != ELF .text'),
     ('one bit flipped', {'ROM_HEX': hexfile('flip', flip)}, None, 1, 'first word 100 (0x190)'),
     ('two words swapped', {'ROM_HEX': hexfile('swap', swap)}, None, 1, 'FAIL hex content != ELF image at 2 word(s); first word 10'),
     ('malformed word', {'ROM_HEX': hexfile('fmt', bad_fmt)}, None, 1, 'FAIL malformed hex word'),
@@ -89,7 +103,7 @@ cases = [
     ('hex from a different program', {'ROM_HEX': tiny_hex}, None, 1, 'FAIL hex 2 words != ELF .text'),
     ('ELF with ROM-loaded .data', {'ROM_HEX': data_hex, 'ROM_ELF': data_elf}, None, 1,
      'FAIL section .data (PROGBITS, 4 B) has ROM-loaded contents'),
-    ('.text symbol beyond image', {}, wrapper_dir('beyond', beyond), 1, 'FAIL .text symbol case3_sensors at 0x1ffc beyond image'),
+    ('.text symbol beyond image', {}, wrapper_dir('beyond', beyond), 1, f'FAIL .text symbol {hi_name} at 0x1ffc beyond image'),
     ('toolchain absent, REQUIRE_ELF=1', {'REQUIRE_ELF': '1'}, wrapper_dir('none', hide=TOOLS), 2, 'SKIPPED ELF cross-checks'),
     ('toolchain absent, default', {}, wrapper_dir('none2', hide=TOOLS), 0, '5 SKIPPED'),
 ]

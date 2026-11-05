@@ -48,13 +48,27 @@ _start:
     sw   t1, 0x04(t0)         /* HEARTBEAT */
 
     /* ------------------------------------------------------------------------
-     * 2. Initialize Dual PWM Motor Controller
+     * 2. Motor PWM (soc_pwm, M2 contract v3): exact zero-command arming
+     *    sequence (M2_STEP1_DECISIONS.md sec. C). SIMULATION ONLY.
+     *    ARM refused -> no motion is commanded; firmware parks in halt_loop
+     *    without BOOT_READY, so the cosim harness fails (no silent pass).
      * ------------------------------------------------------------------------ */
     li   t0, 0x50000200       /* ADDR_PWM_BASE */
-    li   t1, 1                /* Enable bit = 1 */
-    sw   t1, 0x00(t0)         /* PWM_REG_CTRL = enable */
-    sw   zero, 0x04(t0)       /* PWM_REG_DUTY_LEFT = 0 */
-    sw   zero, 0x08(t0)       /* PWM_REG_DUTY_RIGHT = 0 */
+    li   t1, 4
+    sw   t1, 0x00(t0)         /* CTRL.FAULT_CLR */
+    sw   zero, 0x04(t0)       /* CMD_L = 0 */
+    sw   zero, 0x08(t0)       /* CMD_R = 0 */
+    sw   zero, 0x0C(t0)       /* COMMIT (ignored while disarmed) */
+    li   t2, 0x200            /* STATUS bit9 SHADOW_ZERO */
+arm_wait_shadow:
+    lw   t1, 0x10(t0)
+    and  t1, t1, t2
+    beqz t1, arm_wait_shadow
+    li   t1, 1
+    sw   t1, 0x00(t0)         /* CTRL.ARM_REQ */
+    lw   t1, 0x10(t0)
+    andi t1, t1, 1            /* STATUS bit0 ARMED */
+    beqz t1, halt_loop
 
     /* ------------------------------------------------------------------------
      * 3. Mailbox Handshake with Co-Simulation Testbench
@@ -249,44 +263,23 @@ safety_pass:
     sw   t1, 0(t0)
 
     /* ------------------------------------------------------------------------
-     * STEP D: Differential Drive Kinematics & Motor PWM Generation
-     * v_L = v_safe - w_raw
-     * v_R = v_safe + w_raw
-     * Map signed [-128..127] to PWM Duty [0..1000]:
-     * duty = ((v_wheel + 128) * 1000) / 256
+     * STEP D: Differential drive + M2 sign-magnitude motor command (contract v3)
+     * v_L = v_safe - w_raw, v_R = v_safe + w_raw
+     * cmd = sign(v) * min(1000, (|v|*1000) >> 7)   (motor_cmd_conv)
+     * Mailbox PWM_LEFT/PWM_RIGHT now carry the signed CMD (two's complement).
+     * motor_cmd_conv clobbers only t0, t1, a0; t2/t3 survive the 2nd call.
      * ------------------------------------------------------------------------ */
-    sub  t2, s2, s3           /* t2 = v_L */
-    add  t3, s2, s3           /* t3 = v_R */
+    sub  a0, s2, s3           /* v_L */
+    jal  ra, motor_cmd_conv
+    mv   t2, a0               /* t2 = cmd_L */
+    add  a0, s2, s3           /* v_R */
+    jal  ra, motor_cmd_conv
+    mv   t3, a0               /* t3 = cmd_R */
 
-    /* Compute Duty Left */
-    addi t2, t2, 128
-    li   t4, 1000
-    mul  t2, t2, t4
-    srai t2, t2, 8            /* / 256 */
-    /* Clamp 0..1000 */
-    bgez t2, clamp_l_min
-    li   t2, 0
-clamp_l_min:
-    ble  t2, t4, clamp_l_max
-    mv   t2, t4
-clamp_l_max:
-
-    /* Compute Duty Right */
-    addi t3, t3, 128
-    mul  t3, t3, t4
-    srai t3, t3, 8            /* / 256 */
-    /* Clamp 0..1000 */
-    bgez t3, clamp_r_min
-    li   t3, 0
-clamp_r_min:
-    ble  t3, t4, clamp_r_max
-    mv   t3, t4
-clamp_r_max:
-
-    /* Write to PWM registers */
     li   t0, 0x50000200
-    sw   t2, 0x04(t0)         /* DUTY_LEFT */
-    sw   t3, 0x08(t0)         /* DUTY_RIGHT */
+    sw   t2, 0x04(t0)         /* CMD_L */
+    sw   t3, 0x08(t0)         /* CMD_R */
+    sw   zero, 0x0C(t0)       /* COMMIT */
 
     /* ------------------------------------------------------------------------
      * STEP E: Write Results to Mailbox
@@ -308,6 +301,10 @@ clamp_r_max:
     j    cosim_step_loop
 
 cosim_shutdown:
+    /* DISARM motor PWM before idling (ARMED/ACTIVE/SHADOW/CMD -> 0) */
+    li   t0, 0x50000200
+    li   t1, 2
+    sw   t1, 0x00(t0)         /* CTRL.DISARM */
     /* Signal shutdown acknowledge */
     li   t1, 0xFF
     sw   t1, 8(s7)
@@ -320,3 +317,6 @@ halt_loop:
     li   t1, 0x5AFEC0DE
     sw   t1, 0(t0)
     j    halt_loop
+
+/* M2 wheel-command conversion (leaf, clobbers t0,t1,a0) */
+    .include "motor_cmd.inc"

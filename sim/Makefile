@@ -195,9 +195,9 @@ test_wdt_uart_stall: firmware
 		--expect-fail "watchdog tripped unexpectedly" --expect-seen "flag_wdt_expired=1 disarm=1 pwm_cmd L=0 R=0" \
 		$(ROOT_DIR)/sim/tb_uart_stall_m1.vvp
 
-# Characterization (NOT an acceptance test): records the known idle-state PWM
-# persistence (duty L=410/R=589, pwm_en=1 after the pass token) at UART_DIV=16
-# and 217. Passes as long as the run completes; read [PWMPROBE-END] in the logs.
+# Idle-state check (M2: now ASSERTS safe idle after DISARM; M1 recorded the old
+# L=410/R=589 persistence) at UART_DIV=16
+# and 217. Requires [PWMPROBE-PASS]; probe $fatal on any non-safe idle state.
 # Overridable for slow hosts, e.g. make char_pwm_idle CHAR_DIVS=217
 # CHAR_POST_PASS=200000 CHAR_PROBE_WIN=131072 (window = 2 PWM periods of 65536).
 CHAR_DIVS ?= 16 217
@@ -213,7 +213,7 @@ char_pwm_idle: firmware
 			$(ROOT_DIR)/sim/wdt_kick_monitor.v $(ROOT_DIR)/sim/pwm_idle_probe.v || exit 1; \
 		$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_pwm_idle_div$$d.log \
 			--require "SUCCESS: All 8 Navigation SoC Hardware Assertions PASSED!" \
-			--require "[WDTMON-PASS]" --require "[PWMPROBE-END]" \
+			--require "[WDTMON-PASS]" --require "[PWMPROBE-END]" --require "[PWMPROBE-PASS]" \
 			$(ROOT_DIR)/sim/tb_pwm_idle_div$$d.vvp || exit 1; \
 		grep "PWMPROBE-END" $(ROOT_DIR)/sim/tb_pwm_idle_div$$d.log; \
 	done
@@ -309,3 +309,29 @@ test_rom_bounds: firmware
 		|| { echo "FAIL test_rom_bounds: rebuilt robot_nav.hex differs from the tracked file"; exit 1; }
 	REQUIRE_ELF=1 $(PYTHON) $(ROOT_DIR)/sw/test/test_rom_bounds.py
 	$(PYTHON) $(ROOT_DIR)/sw/test/test_rom_bounds_negative.py
+
+# M11b M2 step 3a: V-CONV parity. Firmware motor_cmd_conv (sw/firmware/motor_cmd.inc)
+# run on the SoC sim over v_wheel -256..255 must equal sw/test/motor_cmd_ref.py.
+# Negative control (--perturb, 1-LSB perturbed reference) must FAIL.
+test_motor_conv:
+	cd $(ROOT_DIR)/sw/firmware && riscv-none-elf-as -march=rv32im -mabi=ilp32 conv_test_firmware.s -o conv_test.o && \
+		riscv-none-elf-ld -m elf32lriscv -T linker.ld conv_test.o -o conv_test.elf && \
+		riscv-none-elf-objcopy -O binary conv_test.elf conv_test.bin && $(PYTHON) make_hex.py conv_test.bin conv_test.hex
+	$(IVERILOG) -g2012 -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/conv_test.hex\" \
+		-DCONV_OUT=\"$(ROOT_DIR)/sim/tb_motor_conv.out\" \
+		-o $(ROOT_DIR)/sim/tb_motor_conv.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_motor_conv.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_motor_conv.log --require "[CONV-DUMP-DONE]" $(ROOT_DIR)/sim/tb_motor_conv.vvp
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_motor_conv_parity.py $(ROOT_DIR)/sim/tb_motor_conv.out
+	! $(PYTHON) $(ROOT_DIR)/sw/test/test_motor_conv_parity.py --perturb $(ROOT_DIR)/sim/tb_motor_conv.out
+	@echo "[TEST_MOTOR_CONV PASS] V-CONV 512/512 + negative control FAILed as required"
+
+# M11b M2 step 3d: integration TB, safety_filter + soc_pwm wired as in soc_top
+# (zero->0, atomic COMMIT, WDT/E-stop kill, no reactivation, clear+rearm,
+# freshness vs WDT liveness). Negative control: soc_pwm.disarm_in tied 0 must FAIL.
+test_m2_integration:
+	$(IVERILOG) -g2012 -o $(ROOT_DIR)/sim/tb_m2_integration.vvp $(ROOT_DIR)/rtl/safety/safety_filter.v $(ROOT_DIR)/rtl/periph/soc_pwm.v $(ROOT_DIR)/sim/tb_m2_integration.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_m2_integration.log --require "[INT-PASS]" $(ROOT_DIR)/sim/tb_m2_integration.vvp
+	$(IVERILOG) -g2012 -DNC_NO_DISARM -o $(ROOT_DIR)/sim/tb_m2_integration_nc.vvp $(ROOT_DIR)/rtl/safety/safety_filter.v $(ROOT_DIR)/rtl/periph/soc_pwm.v $(ROOT_DIR)/sim/tb_m2_integration.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_m2_integration_nc.log --expect-fail "[INT-FAIL]" --expect-seen "I3 soc_pwm disarmed within 1 edge" $(ROOT_DIR)/sim/tb_m2_integration_nc.vvp
+	@echo "[TEST_M2_INTEGRATION PASS] integration TB + negative control FAILed as required"
+.PHONY: test_m2_integration
