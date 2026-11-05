@@ -360,7 +360,16 @@ test_pwm_store_scan:
 		rm -f $$sums && echo "[PWM-SCAN] tracked sw/firmware/*.hex unchanged by verification"
 .PHONY: test_pwm_store_scan
 
+# M2 Stage 1: deterministic lockstep check of soc_pwm against the Python contract v3.1
+# reference model (sw/test/pwm_refmodel.py): BFS over all reachable abstract states
+# (PERIOD=3, STALE=4) replaying every transition, boundary suite, fixed-seed walk, and
+# 14 planted-defect controls (temporary mutated RTL copies; tracked RTL never modified).
+# Missing iverilog/vvp -> rc 2 (not a pass). About 2 min on 0.25 vCPU.
+test_pwm_refmodel:
+	$(PYTHON) -u $(ROOT_DIR)/sw/test/test_pwm_refmodel.py
+.PHONY: test_pwm_refmodel
+
 # Explicit, repeatable M2 PR verification gate (simulation only)
-m2_gate: test_soc_pwm_unit test_m2_integration test_safety test_safety_adv test_safety_hw test_wdt_negative test_motor_conv test_soc test_cosim test_nav test_nav_boundaries test_ulx3s_top test_rom_bounds test_pwm_store_scan
+m2_gate: test_soc_pwm_unit test_pwm_refmodel test_m2_integration test_safety test_safety_adv test_safety_hw test_wdt_negative test_motor_conv test_soc test_cosim test_nav test_nav_boundaries test_ulx3s_top test_rom_bounds test_pwm_store_scan
 	@echo "[M2_GATE PASS]"
 .PHONY: m2_gate
