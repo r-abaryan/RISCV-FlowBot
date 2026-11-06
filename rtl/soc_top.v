@@ -27,6 +27,11 @@ module soc_top #(
     output wire        pwm_right_out,
     output wire [15:0] pwm_left_cmd,
     output wire [15:0] pwm_right_cmd,
+    // M11b M2 sign-magnitude motor contract (logical levels; NOT pinned out on
+    // ULX3S yet: driver, polarity and pins are open, B3)
+    output wire        dir_left_out,
+    output wire        dir_right_out,
+    output wire        motor_en_out,
 
     // Hardware Safety Status
     output wire        actuator_disarm
@@ -345,6 +350,8 @@ module soc_top #(
 
     wire estop_tripped = !ext_estop_n;
 
+    wire safety_wdt_expired;   // read-only status copy, no control use
+
     safety_filter u_safety (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -356,7 +363,8 @@ module soc_top #(
         .bus_wstrb        (safety_wstrb),
         .bus_rdata        (safety_rdata),
         .bus_ready        (safety_ready),
-        .actuator_disarm  (actuator_disarm)
+        .actuator_disarm  (actuator_disarm),
+        .wdt_expired_o    (safety_wdt_expired)
     );
 
     soc_pwm u_pwm (
@@ -371,6 +379,14 @@ module soc_top #(
         .wb_cyc_i      (pwm_cyc),
         .wb_ack_o      (pwm_ack),
         .disarm_in     (actuator_disarm),
+        .estop_in      (estop_tripped),
+        // STATUS[3] WDT_TRIP: live mirror of safety_filter flag_wdt_expired
+        // (same bit as SAFETY_STATUS[2]). Status only: the kill path is
+        // disarm_in (actuator_disarm), unchanged.
+        .wdt_trip_in   (safety_wdt_expired),
+        .dir_left_out  (dir_left_out),
+        .dir_right_out (dir_right_out),
+        .motor_en_out  (motor_en_out),
         .pwm_left_cmd  (pwm_left_cmd),
         .pwm_right_cmd (pwm_right_cmd),
         .pwm_left_out  (pwm_left_out),

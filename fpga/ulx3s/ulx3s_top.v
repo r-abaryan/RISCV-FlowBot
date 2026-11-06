@@ -28,6 +28,8 @@ module ulx3s_top (
         .uart_tx(ftdi_rxd),
         .pwm_left_out(pwm_l), .pwm_right_out(pwm_r),
         .pwm_left_cmd(cmd_l_unused), .pwm_right_cmd(cmd_r_unused),
+        // M11b M2: direction/enable are not pinned out (driver, polarity, pins open: B3)
+        .dir_left_out(), .dir_right_out(), .motor_en_out(),
         .actuator_disarm(disarm)
     );
     assign led = {5'b0, pwm_r, pwm_l, disarm};

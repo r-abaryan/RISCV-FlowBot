@@ -15,3 +15,5 @@ sim/tb_nna_top
 abc.history
 build/
 github-*/
+# M11b: simulation logs written by sim/run_vvp_checked.sh and test runs
+sim/*.log

@@ -23,7 +23,8 @@ module safety_filter (
 
     // External Physical Safety Pins
     input  wire        pin_estop_button,    // External active-high E-Stop bumper
-    output wire        actuator_disarm      // Forced high on trip to disarm PWM gates
+    output wire        actuator_disarm,     // Forced high on trip to disarm PWM gates
+    output wire        wdt_expired_o        // Read-only copy of flag_wdt_expired (status only, no control use)
 );
 
     wire bus_sel = bus_req && (bus_addr[31:8] == 24'h500006);
@@ -39,11 +40,12 @@ module safety_filter (
     reg        flag_tripped;
 
     assign actuator_disarm = (!rst_n) || (!reg_enable) || flag_tripped || pin_estop_button;
+    assign wdt_expired_o   = flag_wdt_expired;   // same bit as SAFETY_STATUS[2]
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             reg_enable       <= 1'b1;         // Enabled by default on reset
-            reg_timeout_val  <= 32'd2500000;  // Default 50ms at 50MHz
+            reg_timeout_val  <= 32'd2500000;  // Reset default: 2.5M cycles (100 ms at nominal 25 MHz ULX3S clock; 50 ms only if clocked at 50 MHz)
             wdt_countdown    <= 32'd2500000;
             flag_wdt_expired <= 1'b0;
             flag_tripped     <= 1'b0;

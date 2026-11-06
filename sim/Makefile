@@ -4,7 +4,11 @@ ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
 PYTHON ?= python3
 IVERILOG ?= iverilog
-VVP ?= vvp
+# M11b closure: -N makes vvp exit non-zero on $$stop / interrupt (plain vvp traps
+# SIGTERM from `timeout` and exits 0, so a killed run could look like a pass).
+VVP ?= vvp -N
+# Checked runner: PASS only if vvp rc==0 AND explicit success markers are present.
+VVP_CHECKED = sh $(ROOT_DIR)/sim/run_vvp_checked.sh
 YOSYS ?= yosys
 
 RTL_SRCS = \
@@ -144,7 +148,103 @@ test_nav: firmware
 	@echo "--- Building and Running End-to-End Robot Navigation Testbench ---"
 	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/robot_nav.hex\" \
 		-o $(ROOT_DIR)/sim/tb_soc_nav.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v
-	$(VVP) $(ROOT_DIR)/sim/tb_soc_nav.vvp
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_soc_nav.log \
+		--require "SUCCESS: All 8 Navigation SoC Hardware Assertions PASSED!" \
+		$(ROOT_DIR)/sim/tb_soc_nav.vvp
+
+# M11b watchdog-budget regression at the board UART divider (217 = 25 MHz / 115200).
+# Runs the navigation firmware past the PASS token (pass banner + idle loop) with a
+# passive monitor that fails on any watchdog trip or a refresh gap > 250,000 cycles
+# (50% of the firmware's 500,000-cycle timeout). Slow (~minutes); not in test_rtl.
+# DIV217_POST_PASS shortens the post-pass window on slow hosts. The ~162-char
+# pass banner takes ~352k cycles at div 217 (10 bits x 217 per char), and the
+# original trip happened inside it, so keep it >= 400000 for a regression run;
+# shorter windows only smoke-test the harness.
+DIV217_POST_PASS ?= 1000000
+test_nav_div217: firmware
+	@echo "--- Navigation firmware at UART_DIV=217 with watchdog-budget monitor ---"
+	$(IVERILOG) -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/robot_nav.hex\" \
+		-DUART_DIV=217 -DNAV_MAX_CYCLES=3000000 -DNAV_TIME_LIMIT_NS=200000000 -DNAV_POST_PASS_CYCLES=$(DIV217_POST_PASS) \
+		-o $(ROOT_DIR)/sim/tb_soc_nav_div217.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/wdt_kick_monitor.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_soc_nav_div217.log \
+		--require "SUCCESS: All 8 Navigation SoC Hardware Assertions PASSED!" \
+		--require "[WDTMON-PASS]" \
+		$(ROOT_DIR)/sim/tb_soc_nav_div217.vvp
+
+# ---------------------------------------------------------------------------
+# M11b Milestone 1 closure tests (simulation only; slow, not in test_rtl).
+# Shared defines for the post-pass window runs (same as test_nav_div217).
+NAV_LONG_DEFS = -DNAV_MAX_CYCLES=3000000 -DNAV_TIME_LIMIT_NS=200000000 -DNAV_POST_PASS_CYCLES=1000000
+NAV_HEX_DEF = -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/robot_nav.hex\"
+
+# Negative controls: force u_uart.busy=1 (UART stuck busy) from reset (mode 0) or
+# from the pass token (mode 1) at UART_DIV=16. The firmware's UART wait loop must
+# NOT keep the watchdog alive: PASS iff the watchdog trips, the TB $fatal's with a
+# non-signal exit code, and the [STALL] trip line is logged.
+test_wdt_uart_stall: firmware
+	@echo "--- UART-stall negative control, mode 0 (stuck from reset) ---"
+	$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=16 $(NAV_LONG_DEFS) -DSTALL_MODE=0 \
+		-o $(ROOT_DIR)/sim/tb_uart_stall_m0.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/uart_stall_inject.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_uart_stall_m0.log \
+		--expect-fail "watchdog tripped unexpectedly" --expect-seen "flag_wdt_expired=1 disarm=1 pwm_cmd L=0 R=0" \
+		$(ROOT_DIR)/sim/tb_uart_stall_m0.vvp
+	@echo "--- UART-stall negative control, mode 1 (stuck at pass token) ---"
+	$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=16 $(NAV_LONG_DEFS) -DSTALL_MODE=1 \
+		-o $(ROOT_DIR)/sim/tb_uart_stall_m1.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/uart_stall_inject.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_uart_stall_m1.log \
+		--expect-fail "watchdog tripped unexpectedly" --expect-seen "flag_wdt_expired=1 disarm=1 pwm_cmd L=0 R=0" \
+		$(ROOT_DIR)/sim/tb_uart_stall_m1.vvp
+
+# Idle-state check (M2: now ASSERTS safe idle after DISARM; M1 recorded the old
+# L=410/R=589 persistence) at UART_DIV=16
+# and 217. Requires [PWMPROBE-PASS]; probe $fatal on any non-safe idle state.
+# Overridable for slow hosts, e.g. make char_pwm_idle CHAR_DIVS=217
+# CHAR_POST_PASS=200000 CHAR_PROBE_WIN=131072 (window = 2 PWM periods of 65536).
+CHAR_DIVS ?= 16 217
+CHAR_POST_PASS ?= 1000000
+CHAR_PROBE_WIN ?= 524288
+char_pwm_idle: firmware
+	@for d in $(CHAR_DIVS); do \
+		echo "--- Idle-state PWM characterization, UART_DIV=$$d ---"; \
+		$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=$$d \
+			-DNAV_MAX_CYCLES=3000000 -DNAV_TIME_LIMIT_NS=200000000 \
+			-DNAV_POST_PASS_CYCLES=$(CHAR_POST_PASS) -DPROBE_WIN=$(CHAR_PROBE_WIN) \
+			-o $(ROOT_DIR)/sim/tb_pwm_idle_div$$d.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v \
+			$(ROOT_DIR)/sim/wdt_kick_monitor.v $(ROOT_DIR)/sim/pwm_idle_probe.v || exit 1; \
+		$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_pwm_idle_div$$d.log \
+			--require "SUCCESS: All 8 Navigation SoC Hardware Assertions PASSED!" \
+			--require "[WDTMON-PASS]" --require "[PWMPROBE-END]" --require "[PWMPROBE-PASS]" \
+			$(ROOT_DIR)/sim/tb_pwm_idle_div$$d.vvp || exit 1; \
+		grep "PWMPROBE-END" $(ROOT_DIR)/sim/tb_pwm_idle_div$$d.log; \
+	done
+
+# Termination-path checks: each run is deliberately broken and MUST fail with a
+# non-signal exit code and no PASS verdict. --expect-fail markers must be on the
+# single terminal FATAL: line; --expect-seen markers are context printed earlier
+# (M11b harness fix 2: an interrupted run has rc=1 but no FATAL: line).
+#  T1 gap budget 100 cycles (< any real gap), 50k-cycle window -> [WDTMON-FAIL]
+#  T2 NAV_MAX_CYCLES=60000 (< pass token ~122k; the TB cycle counter stops at
+#     the pass token, so the limit only applies before it) -> [WDTMON-INCOMPLETE] cycle limit
+#  T3 NAV_TIME_LIMIT_NS=2 ms (~100k cyc, before the pass token) -> [WDTMON-INCOMPLETE] time limit
+test_sim_termination: firmware
+	$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=16 -DNAV_MAX_CYCLES=3000000 -DNAV_TIME_LIMIT_NS=200000000 -DNAV_POST_PASS_CYCLES=50000 -DWDT_MAX_GAP_CYCLES=100 \
+		-o $(ROOT_DIR)/sim/tb_term_t1.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/wdt_kick_monitor.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_term_t1.log --expect-fail "[WDTMON-FAIL] max refresh gap" $(ROOT_DIR)/sim/tb_term_t1.vvp
+	$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=16 -DNAV_MAX_CYCLES=60000 -DNAV_TIME_LIMIT_NS=200000000 -DNAV_POST_PASS_CYCLES=1000000 \
+		-o $(ROOT_DIR)/sim/tb_term_t2.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/wdt_kick_monitor.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_term_t2.log --expect-fail "[TB FATAL] Navigation policy test failed due to timeout" \
+		--expect-seen "[WDTMON-INCOMPLETE] run ended by TB cycle limit" $(ROOT_DIR)/sim/tb_term_t2.vvp
+	@! grep -q "WDTMON-PASS" $(ROOT_DIR)/sim/tb_term_t2.log
+	$(IVERILOG) -I$(ROOT_DIR)/rtl $(NAV_HEX_DEF) -DUART_DIV=16 -DNAV_MAX_CYCLES=3000000 -DNAV_TIME_LIMIT_NS=2000000 -DNAV_POST_PASS_CYCLES=1000000 \
+		-o $(ROOT_DIR)/sim/tb_term_t3.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_nav.v $(ROOT_DIR)/sim/wdt_kick_monitor.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_term_t3.log --expect-fail "[TB FATAL] Navigation simulation watchdog timeout reached" \
+		--expect-seen "[WDTMON-INCOMPLETE] run ended by TB time limit" --expect-seen "[TB] TIME LIMIT:" $(ROOT_DIR)/sim/tb_term_t3.vvp
+	@! grep -q "WDTMON-PASS" $(ROOT_DIR)/sim/tb_term_t3.log
+
+# Self-test of the checked runner itself (seconds): a run killed by SIGTERM, a
+# missing success marker and a $$fatal must all be rejected; a clean run accepted.
+test_vvp_runner: 
+	sh $(ROOT_DIR)/sim/test_run_vvp_checked.sh
 
 test_cosim: firmware
 	@echo "--- Building and Running Closed-Loop Co-Simulation Testbench ---"
@@ -152,20 +252,25 @@ test_cosim: firmware
 		-o $(ROOT_DIR)/sim/tb_soc_cosim.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_soc_cosim.v
 	$(PYTHON) $(ROOT_DIR)/sim/soc_closed_loop_cosim.py --steps 10 --episodes 1
 
-test_rtl: test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc test_uart
+test_rtl: audit_pipes test_nna test_safety test_safety_hw test_nna_corners_sim test_safety_adv test_soc test_uart
 
 # D-B UART unit test (divider 8)
+# M11b harness fix 1: a simulator piped into tee/grep loses its exit status, so a TB that
+# prints its PASS marker and then hits $$fatal would still pass. Fail if any such pipe remains.
+audit_pipes:
+	@if grep -nE '^[[:space:]].*\$$\(VVP\)[^|#]*\|' $(ROOT_DIR)/sim/Makefile; then \
+		echo "audit_pipes: FAIL - pipe after \$$(VVP) masks the simulator exit status; use \$$(VVP_CHECKED)"; exit 1; \
+	else echo "audit_pipes: PASS - no \$$(VVP) output pipes"; fi
+
 test_uart:
 	@echo "--- Running UART unit testbench (divider 8) ---"
 	$(IVERILOG) -g2012 -o $(ROOT_DIR)/sim/tb_soc_uart.vvp $(ROOT_DIR)/rtl/periph/soc_uart.v $(ROOT_DIR)/sim/tb_soc_uart.v
-	$(VVP) $(ROOT_DIR)/sim/tb_soc_uart.vvp | tee $(ROOT_DIR)/sim/tb_soc_uart.log
-	@grep -q "TB_SOC_UART PASS" $(ROOT_DIR)/sim/tb_soc_uart.log
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_soc_uart.log --require "TB_SOC_UART PASS" --require "fails=0" $(ROOT_DIR)/sim/tb_soc_uart.vvp
 
 # ULX3S wrapper pin-decode test (slow, ~minutes; not in test_rtl). Run from repo root cwd.
 test_ulx3s_top:
 	cd $(ROOT_DIR) && $(IVERILOG) -g2012 -I rtl -o sim/tb_ulx3s_top.vvp $(RTL_SRCS) fpga/ulx3s/ulx3s_top.v sim/tb_ulx3s_top.v
-	cd $(ROOT_DIR) && $(VVP) sim/tb_ulx3s_top.vvp | tee sim/tb_ulx3s_top.log
-	@grep -q "fails=0" $(ROOT_DIR)/sim/tb_ulx3s_top.log
+	cd $(ROOT_DIR) && $(VVP_CHECKED) --log sim/tb_ulx3s_top.log --require "fails=0" --require "nrx=" sim/tb_ulx3s_top.vvp
 
 synth_check:
 	@echo "--- Running Yosys RTL Syntax & Elaboration Check ---"
@@ -174,7 +279,7 @@ synth_check:
 clean:
 	rm -f $(ROOT_DIR)/sim/*.vvp $(ROOT_DIR)/sim/*.vcd
 
-.PHONY: test_rom_layout test_wdt_negative
+.PHONY: audit_pipes test_rom_layout test_wdt_negative test_nav_div217 test_wdt_uart_stall char_pwm_idle test_sim_termination test_vvp_runner
 test_rom_layout: firmware
 	python3 $(ROOT_DIR)/sw/test/test_rom_layout.py && python3 $(ROOT_DIR)/sw/test/test_rom_layout.py --selftest
 	python3 $(ROOT_DIR)/sw/test/test_nav_expected.py
@@ -189,3 +294,111 @@ test_nav_boundaries:
 test_front_sensor_mapping:
 	python3 ../sw/test/test_front_sensor_mapping.py
 .PHONY: test_nav_boundaries test_front_sensor_mapping
+
+# Strict ROM-bounds gate (test only). Prerequisites are enforced, not assumed:
+#  1. the RISC-V binutils must exist (no silent skip);
+#  2. `make firmware` rebuilds robot_nav.elf/.hex, and the rebuilt hex must equal the TRACKED
+#     robot_nav.hex (git diff), otherwise the hex==ELF comparison would be self-fulfilling;
+#  3. test_rom_bounds.py runs with REQUIRE_ELF=1 (any skipped check is exit 2);
+#  4. the negative controls must all trip with their expected FAIL text.
+.PHONY: test_rom_bounds
+test_rom_bounds: firmware
+	@command -v riscv-none-elf-readelf >/dev/null && command -v riscv-none-elf-objcopy >/dev/null \
+		|| { echo "FAIL test_rom_bounds: riscv-none-elf binutils missing (not a pass)"; exit 2; }
+	@cd $(ROOT_DIR) && git diff --quiet -- sw/firmware/robot_nav.hex \
+		|| { echo "FAIL test_rom_bounds: rebuilt robot_nav.hex differs from the tracked file"; exit 1; }
+	REQUIRE_ELF=1 $(PYTHON) $(ROOT_DIR)/sw/test/test_rom_bounds.py
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_rom_bounds_negative.py
+
+# M11b M2 step 3a: V-CONV parity. Firmware motor_cmd_conv (sw/firmware/motor_cmd.inc)
+# run on the SoC sim over v_wheel -256..255 must equal sw/test/motor_cmd_ref.py.
+# Negative control (--perturb, 1-LSB perturbed reference) must FAIL.
+test_motor_conv:
+	cd $(ROOT_DIR)/sw/firmware && riscv-none-elf-as -march=rv32im -mabi=ilp32 conv_test_firmware.s -o conv_test.o && \
+		riscv-none-elf-ld -m elf32lriscv -T linker.ld conv_test.o -o conv_test.elf && \
+		riscv-none-elf-objcopy -O binary conv_test.elf conv_test.bin && $(PYTHON) make_hex.py conv_test.bin conv_test.hex
+	$(IVERILOG) -g2012 -I$(ROOT_DIR)/rtl -DROM_INIT_FILE=\"$(ROOT_DIR)/sw/firmware/conv_test.hex\" \
+		-DCONV_OUT=\"$(ROOT_DIR)/sim/tb_motor_conv.out\" \
+		-o $(ROOT_DIR)/sim/tb_motor_conv.vvp $(RTL_SRCS) $(ROOT_DIR)/sim/tb_motor_conv.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_motor_conv.log --require "[CONV-DUMP-DONE]" $(ROOT_DIR)/sim/tb_motor_conv.vvp
+	$(PYTHON) $(ROOT_DIR)/sw/test/test_motor_conv_parity.py $(ROOT_DIR)/sim/tb_motor_conv.out
+	! $(PYTHON) $(ROOT_DIR)/sw/test/test_motor_conv_parity.py --perturb $(ROOT_DIR)/sim/tb_motor_conv.out
+	@echo "[TEST_MOTOR_CONV PASS] V-CONV 512/512 + negative control FAILed as required"
+
+# M11b M2 step 3d: integration TB, safety_filter + soc_pwm wired as in soc_top
+# (zero->0, atomic COMMIT, WDT/E-stop kill, no reactivation, clear+rearm,
+# freshness vs WDT liveness). Negative control: soc_pwm.disarm_in tied 0 must FAIL.
+test_m2_integration:
+	$(IVERILOG) -g2012 -o $(ROOT_DIR)/sim/tb_m2_integration.vvp $(ROOT_DIR)/rtl/safety/safety_filter.v $(ROOT_DIR)/rtl/periph/soc_pwm.v $(ROOT_DIR)/sim/tb_m2_integration.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_m2_integration.log --require "[INT-PASS]" $(ROOT_DIR)/sim/tb_m2_integration.vvp
+	$(IVERILOG) -g2012 -DNC_NO_DISARM -o $(ROOT_DIR)/sim/tb_m2_integration_nc.vvp $(ROOT_DIR)/rtl/safety/safety_filter.v $(ROOT_DIR)/rtl/periph/soc_pwm.v $(ROOT_DIR)/sim/tb_m2_integration.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_m2_integration_nc.log --expect-fail "[INT-FAIL]" --expect-seen "I3 soc_pwm disarmed within 1 edge" $(ROOT_DIR)/sim/tb_m2_integration_nc.vvp
+	@echo "[TEST_M2_INTEGRATION PASS] integration TB + negative control FAILed as required"
+.PHONY: test_m2_integration
+
+# M2 review of 55e35f3: soc_pwm directed unit TB as an explicit target
+test_soc_pwm_unit:
+	$(IVERILOG) -g2012 -o $(ROOT_DIR)/sim/tb_soc_pwm_unit.vvp $(ROOT_DIR)/rtl/periph/soc_pwm.v $(ROOT_DIR)/sim/tb_soc_pwm_unit.v
+	$(VVP_CHECKED) --log $(ROOT_DIR)/sim/tb_soc_pwm_unit.log --require "[UNIT-PASS]" $(ROOT_DIR)/sim/tb_soc_pwm_unit.vvp
+.PHONY: test_soc_pwm_unit
+
+# M2 C4: static PWM-write allowlist scan of the ROM images robot_nav, soc_cosim, firmware
+# (soc_firmware.s via assemble.py) and conv_test. Path-sensitive constant propagation over
+# the hex: every store reaching the PWM window (re-derived from rtl/bus/soc_interconnect.v)
+# must be an allowlisted (label, offset, source-register) aligned sw; any unresolved store
+# base fails closed. Provenance of each tracked hex is checked first (sw/test/fw_provenance.py).
+# Static check of the image only, NOT hardware enforcement (no MPU); see the script header.
+# Deliberately NOT dependent on `firmware`: it must not rewrite tracked outputs. Missing or
+# stale prerequisites (on-disk ELF/BIN, toolchain) fail with rc 2; tracked sw/firmware/*.hex
+# are hashed before and after and must be unchanged.
+test_pwm_store_scan:
+	@command -v riscv-none-elf-nm >/dev/null || { echo "FAIL test_pwm_store_scan: riscv-none-elf-nm missing (not a pass)"; exit 2; }
+	@cd $(ROOT_DIR) && sums=$$(mktemp) && sha256sum sw/firmware/*.hex > $$sums && \
+		$(PYTHON) sw/test/pwm_store_scan.py && \
+		$(PYTHON) sw/test/pwm_store_scan_negative.py && \
+		{ sha256sum -c --quiet $$sums || { echo "FAIL test_pwm_store_scan: tracked firmware hex modified during verification"; rm -f $$sums; exit 1; }; } && \
+		rm -f $$sums && echo "[PWM-SCAN] tracked sw/firmware/*.hex unchanged by verification"
+.PHONY: test_pwm_store_scan
+
+# M2 Stage 1: deterministic lockstep check of soc_pwm against the Python contract v3.1
+# reference model (sw/test/pwm_refmodel.py): BFS over all reachable abstract states
+# (PERIOD=3, STALE=4) replaying every transition, boundary suite, fixed-seed walk, and
+# 14 planted-defect controls (temporary mutated RTL copies; tracked RTL never modified).
+# Missing iverilog/vvp -> rc 2 (not a pass). About 2 min on 0.25 vCPU.
+test_pwm_refmodel:
+	$(PYTHON) -u $(ROOT_DIR)/sw/test/test_pwm_refmodel.py
+.PHONY: test_pwm_refmodel
+
+# Explicit, repeatable M2 PR verification gate (simulation only)
+m2_gate: test_soc_pwm_unit test_pwm_refmodel test_m2_integration test_safety test_safety_adv test_safety_hw test_wdt_negative test_motor_conv test_soc test_cosim test_nav test_nav_boundaries test_ulx3s_top test_rom_bounds test_pwm_store_scan test_m2_soc_estop test_m2_vif
+	@echo "[M2_GATE PASS]"
+.PHONY: m2_gate
+
+# ---------------------------------------------------------------------------
+# M2 Stage 1 Step 1b (simulation only, test-only). test_m2_soc_estop and the short test_m2_vif are in m2_gate
+# (owner decision, Step 1c). The exhaustive test_m2_vif_full and test_m2_step1b stay OUT of m2_gate (runtime); run explicitly.
+# test_m2_soc_estop: real soc_top, S1 estop=>disarm, S2 wdt=>disarm, S3 shared E-stop net, + 4 broken-connection NCs (~50 s).
+test_m2_soc_estop: firmware
+	sh $(ROOT_DIR)/sim/run_m2_soc_estop.sh
+# test_m2_vif: V-IF3 (49 pairs) + V-IF1 at PERIOD 1000/1250 for -50..50 + V-IF2 sampled raw 32000..34000 (both sides) + NCs (~3 min).
+test_m2_vif:
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF3 1000 $(ROOT_DIR)/sim/m2_vif3.log
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF1 1000 $(ROOT_DIR)/sim/m2_vif1_1000.log +LO=-50 +HI=50 +MODES=7
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF1 1250 $(ROOT_DIR)/sim/m2_vif1_1250.log +LO=-50 +HI=50 +MODES=7
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF2 1000 $(ROOT_DIR)/sim/m2_vif2_s.log +LO=32000 +HI=34000 +SIDES=3
+	sh $(ROOT_DIR)/sim/run_m2_vif_nc.sh
+	@echo "[TEST_M2_VIF PASS] sampled shards + NCs (the exhaustive set is test_m2_vif_full)"
+# test_m2_vif_full: exhaustive V-IF1 (2,001 values x 3 patterns, PERIOD 1000 and 1250) and V-IF2 (63,535 invalid values per
+# side), ~70 min at 0.25 vCPU. Run the shards one by one if a single shell call is time-limited.
+VIF2_SHARDS = 0:16383 16384:32767 32768:49151 49152:65535
+test_m2_vif_full:
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF1 1000 $(ROOT_DIR)/sim/m2_vif1_full_1000.log +LO=-1000 +HI=1000 +MODES=7
+	sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF1 1250 $(ROOT_DIR)/sim/m2_vif1_full_1250.log +LO=-1000 +HI=1000 +MODES=7
+	for s in 1 2; do for r in $(VIF2_SHARDS); do \
+	  sh $(ROOT_DIR)/sim/run_m2_vif.sh VIF2 1000 $(ROOT_DIR)/sim/m2_vif2_full_$$s_$${r%:*}.log +LO=$${r%:*} +HI=$${r#*:} +SIDES=$$s || exit 1; \
+	done; done
+	@echo "[TEST_M2_VIF_FULL PASS]"
+# test_m2_step1b: RTL vs independent contract model (sw/test/m2_contract_model.py) incl. 17 planted errors (~10 min).
+test_m2_step1b:
+	$(PYTHON) -u $(ROOT_DIR)/sw/test/test_m2_step1b_rtl.py
+.PHONY: test_m2_soc_estop test_m2_vif test_m2_vif_full test_m2_step1b

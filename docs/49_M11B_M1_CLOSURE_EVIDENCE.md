@@ -1,0 +1,207 @@
+# 49 — M11b Milestone 1 closure: tests, evidence and simulation-runner cleanup
+
+Status: **Milestone 1 accepted by owner (2026-10-24) as simulation-verified for the tested
+workload**, subject to the limitations in section 5. Everything here is **RTL simulation only**
+(Icarus Verilog 12.0, `vvp -N`). Nothing here is synthesized, routed, board-tested or robot-tested.
+B1 (measured board clock), B2 (pin state of an unconfigured FPGA) and B3 (physical E-stop)
+remain **OPEN**.
+
+Previous docs: `docs/48` (M1 implementation + pause snapshot). This commit adds only test
+harness, test runner, Makefile targets and documentation. **No functional RTL (`rtl/`), firmware
+(`sw/`) or FPGA (`fpga/`) file is changed**, and the M11a bitstream and provenance are untouched.
+
+Labels used below:
+- **MEASURED**: ran in simulation, the log exists (logs are not committed, see section 4).
+- **CODE**: concluded from reading source, not executed.
+- **PROPOSAL**: a design suggestion; not implemented.
+
+---
+
+## 1. What this commit adds
+
+| File | Kind | Purpose |
+|---|---|---|
+| `sim/run_vvp_checked.sh` | runner | Runs `vvp -N`. Positive mode: PASS only if exit code is 0, **every** `--require` marker is in the log, and there is no `FATAL` / `[WDTMON-FAIL]` / `[WDTMON-INCOMPLETE]`. Negative mode (`--expect-fail`): PASS only if exit code is non-zero, **not** a kill/timeout code (124 or >128), exactly one terminal `FATAL:` line that carries every `--expect-fail` marker, every `--expect-seen` context marker somewhere in the log, and no interrupt artefacts (harness fix 2, section 8). |
+| `sim/test_run_vvp_checked.sh` | runner self-test | SIGTERM-killed run, SIGKILL-killed run, missing marker, `$fatal` and usage errors must be handled correctly. |
+| `sim/uart_stall_inject.v` | test-only module | Forces `u_uart.busy=1` from reset (`STALL_MODE=0`) or from the pass token (`STALL_MODE=1`); logs `[STALL]` lines when the watchdog trips. |
+| `sim/pwm_idle_probe.v` | test-only module | After the pass token: counts PWM register writes, measures pin high-time over a `PROBE_WIN` window, prints `[PWMPROBE-END]`. Fatal if the window does not fit or is empty. |
+| `sim/wdt_kick_monitor.v` | test-only (modified) | At the TB cycle limit before the post-pass window ends it now prints `[WDTMON-INCOMPLETE] ... NO PASS verdict` (it used to print PASS). It also hooks the TB time limit and prints its summary plus `[WDTMON-INCOMPLETE]` there (it used to print nothing). |
+| `sim/tb_soc_nav.v` | testbench (modified) | On a time-limit failure it prints `[TB] TIME LIMIT: cycles, test_passed, RAM[4095], trap, disarm, wdt_expired, pwm_cmd` before `$fatal`. No change to pass/fail logic. |
+| `sim/run_wdt_negative.sh` | runner (modified) | Uses `vvp -N`. Exit codes 124, 137 and 143 (timeout, SIGKILL, SIGTERM) are now rejected, so a killed run can't count as a "trip detected". |
+| `sim/Makefile` | build (modified) | `VVP ?= vvp -N`; `test_nav` and `test_nav_div217` go through the checked runner; new targets `test_wdt_uart_stall`, `char_pwm_idle`, `test_sim_termination`, `test_vvp_runner`. `DIV217_POST_PASS`, `CHAR_DIVS`, `CHAR_POST_PASS` and `CHAR_PROBE_WIN` can be overridden for slow hosts. |
+| `.gitignore` | repo | Ignores `sim/*.log` (logs written by the runners). |
+
+Not included on purpose: `sim/tb_pwm_period.v` (PWM pin-period unit test from the 2026-10-20
+investigation). It belongs to Milestone 2 (PWM scale) and stays untracked.
+
+Unchanged and still using plain `vvp`: `sw/test/test_nav_boundaries.py` and
+`sim/soc_closed_loop_cosim.py`. Both start `vvp` with `subprocess` and check results
+themselves; `test_nav_boundaries` deliberately kills `vvp` early once it has the frames it needs.
+They aren't affected by the exit-code issue in section 2.5, but they are not covered by the
+checked runner either.
+
+## 2. Measured results (MEASURED)
+
+Firmware: `sw/firmware/robot_nav.hex` from milestone 1 (`018a8ff`). Watchdog timeout 500,000
+cycles. Monitor budget 250,000 cycles (50%).
+
+### 2.1 UART divider-217 watchdog regression (positive)
+- Full run (closure review, firmware at `0adc7ac`, ended normally, not via the checked runner):
+  `make test_nav_div217`, 1,000,000-cycle post-pass window, which covers the whole ~352k-cycle
+  pass banner. Result: `[WDTMON-PASS]`, refreshes=16586, **max refresh gap 3,462 cycles**,
+  minimum countdown 496,539 (99.3% of the timeout left), no trip.
+- With the checked runner (this commit): `make test_nav_div217 DIV217_POST_PASS=20000`,
+  CHECKED PASS, exit code 0, max gap 3,462, 99.3% left. This **shortened window does not cover
+  the banner**. It only confirms the harness and runner work.
+
+### 2.2 UART-stall negative controls (divider 16)
+`make test_wdt_uart_stall`, exit code 0 (both controls failed as expected):
+- Mode 0, stuck from reset: `[STALL] cyc=500090 flag_wdt_expired=1 disarm=1 pwm_cmd L=0 R=0`, vvp exit code 1.
+- Mode 1, stuck at the pass token (cyc 122,274): tripped at cyc 622,105 (499,831 cycles later), disarm=1, PWM 0/0, vvp exit code 1.
+
+So a stuck UART does not keep the watchdog alive. **Not run at divider 217.**
+
+### 2.3 Idle-state PWM persistence (characterization, not acceptance)
+`make char_pwm_idle` (bounded windows, see section 5), exit code 0 for each:
+- div 16 (`CHAR_POST_PASS=200000 CHAR_PROBE_WIN=131072`): `en=1 dutyL=410 dutyR=589 disarm=0 writes_after_pass=0`; pin high L=820/131072 (6,256 ppm = 0.63%), R=1178/131072 (8,987 ppm = 0.90%). (The original run sampled 131,073 cycles because of the probe off-by-one fixed in section 9; re-run after the fix gives the same high counts over exactly 131,072.)
+- div 217 (`CHAR_DIVS=217 CHAR_POST_PASS=70000 CHAR_PROBE_WIN=65536`): same register state, 410/589 high counts per period (6,256 / 8,987 ppm), `writes_after_pass=0`.
+
+After the pass token the last command stays applied with the gate enabled, and nothing writes
+PWM again. This is the known M2 issue (section 6), and this test records it rather than accepting it.
+
+### 2.4 Termination paths (all must fail, none may PASS)
+`make test_sim_termination`, exit code 0:
+- T1: gap budget 100 cycles, so the monitor reports `[WDTMON-FAIL] max refresh gap 3462 > budget 100`, vvp exit code 1.
+- T2: `NAV_MAX_CYCLES=60000` (before the pass token): `[WDTMON-INCOMPLETE] run ended by TB cycle limit ... NO PASS verdict`, vvp exit code 1, no `WDTMON-PASS` in the log.
+- T3: `NAV_TIME_LIMIT_NS=2 ms`: monitor summary plus `[WDTMON-INCOMPLETE] run ended by TB time limit`, and `[TB] TIME LIMIT: cycles=99995 test_passed=0 RAM[4095]=0x00000000 trap=0 disarm=0 wdt_expired=0 pwm_cmd L=441 R=558`, vvp exit code 1.
+
+Note: the TB cycle counter stops at the pass token, so `NAV_MAX_CYCLES` only limits the run
+before the pass token.
+
+### 2.5 Simulator exit status (the investigation behind this cleanup)
+- Plain `vvp` traps SIGTERM (for example from `timeout`) and **exits 0**, so a killed run looks like a pass. `vvp -N` exits 1. During the closure review three runs were cut off this way and logged exit code 0. They were renamed `*_KILLED*` / `*_INCOMPLETE*` and not used as evidence.
+- `make test_vvp_runner`: all 9 self-test cases pass (clean pass accepted; missing marker, `$fatal`, SIGTERM-killed and SIGKILL-killed runs rejected; negative mode: `$fatal` accepted, a clean run rejected, a killed run rejected; calling without any marker is a usage error with exit code 2).
+
+### 2.6 Other regressions with the new `VVP = vvp -N` (exit code 0 unless stated)
+- `make test_rtl`: all subtests pass (NNA, safety filter, safety HW, NNA corners, adversarial, SoC, UART).
+- `make test_nav`: CHECKED PASS ("All 8 Navigation SoC Hardware Assertions PASSED").
+- `make test_rom_layout`: pass (layout, self-test, nav expected-PWM reference).
+- `make test_wdt_negative`: `NEGATIVE TEST PASS (rc=1, trip detected)`.
+- `make test_ulx3s_top`: `fails=0`, make exit code 0 (1 min 20 s).
+- Not run in this pass: `test_nav_boundaries` (~7 min, unchanged code path), `test_cosim`, `test_py`, `test_quant`, `test_trained_nna`, `test_rl_nna`, synthesis/PnR (no expensive CI, per the owner's instruction).
+
+## 3. Code-based conclusions (CODE, not executed)
+- **The watchdog shows the CPU is alive, not that the motor command is fresh.** The idle loop keeps kicking the watchdog while the last PWM command (410/589, gate enabled) stays applied. Nothing in RTL bounds how old an applied motor command can be.
+- **There is effectively one PWM writer**, the navigation step in `robot_nav`, but nothing enforces this. Any code path can store to the PWM registers.
+- **On a watchdog trip, RTL disarm forces the PWM command to 0** no matter what the firmware does. This was observed at divider 16 in 2.2 and not tested at divider 217.
+
+## 4. Reproduction and evidence handling
+Run from `sim/` with Icarus Verilog 12 and the `riscv-none-elf` toolchain:
+```
+make test_vvp_runner
+make test_rtl test_nav test_rom_layout test_wdt_negative
+make test_wdt_uart_stall            # ~7-8 min
+make test_sim_termination           # ~2-3 min
+make test_nav_div217                # full 1M-cycle post-pass window (~8+ min on a normal host)
+make char_pwm_idle                  # characterization; slow at defaults
+```
+Logs go to `sim/*.log`, which is git-ignored. Logs from the closure review were kept outside the
+repo by the agent and are not committed (generated output).
+
+## 5. Limitations
+1. Simulation only. Nothing here verifies timing, real UART hardware, the board clock (B1), pin state before configuration (B2) or the physical E-stop (B3).
+2. The full-banner divider-217 run with the **checked runner** could not finish on the agent host: heavy CPU steal (~23% of a core available) against a 600 s call limit, three attempts at `DIV217_POST_PASS=400000`. Full-banner evidence is the run in 2.1, which ended normally with the same firmware and monitor budget, before the runner existed. The default `make test_nav_div217` (1M window) still needs a run on a normal host or CI.
+3. The idle-PWM characterization used shortened windows (200k / 70k post-pass cycles, 2 / 1 PWM periods measured), not the 1M default.
+4. UART-stall negative controls were run at divider 16 only.
+5. One firmware/workload (the 3 canned sensor cases in `robot_nav`). The 3,462-cycle maximum gap holds for that workload only.
+6. The PWM pin duty scale problem (16-bit counter vs 0..1000 command, 0.76% at "stop" 500) is **unchanged**. It is Milestone 2 scope.
+
+## 6. Proposals carried into Milestone 2 (PROPOSAL, not implemented)
+Safe idle behaviour (explicit command clearing before idle), a single `motor_set` path with
+writer verification, an RTL actuator-command freshness timeout, sign-magnitude command
+representation and PWM frequency, reset/disarm/coast/brake/enable semantics, and pin-level and
+negative-control tests. The detailed proposal is prepared separately for owner review. None of it
+is implemented on this branch.
+
+## 7. Harness fix 1 (2026-11-02): no simulator output pipes
+Problem: `test_uart` and `test_ulx3s_top` ran `$(VVP) ... | tee log` followed by `grep` for a PASS
+marker. The pipe drops the simulator exit status, so a testbench that prints its PASS marker and then
+hits `$fatal` (or is killed) still passed. Reproduced with a 1-line TB (PASS marker, then `$fatal`):
+old pattern rc=0, checked runner rc=1.
+
+Change (harness only, no RTL/firmware change):
+- Both targets now use `$(VVP_CHECKED)` with the same markers (`TB_SOC_UART PASS` + `fails=0`;
+  `fails=0` + `nrx=`).
+- New `make audit_pipes` fails if any `$(VVP)` command line in `sim/Makefile` is piped. It is a
+  prerequisite of `test_rtl`. Negative control: against the previous Makefile it reports both lines.
+
+Results (Icarus Verilog 12.0, agent host, simulation only): `audit_pipes` PASS; runner self-test
+PASS (9/9); `make test_uart` CHECKED PASS (fails=0); `make test_ulx3s_top` CHECKED PASS (nrx=89,
+frame_err=0, mism=0, fails=0, 34 s).
+
+## 8. Harness fix 2 (2026-11-02): negative controls must end on the expected `$fatal`
+Problem: with `vvp -N`, SIGINT/SIGTERM/SIGHUP give rc=1, the same as `$fatal`. A negative control
+only needed rc!=0 (not 124/>128) and its markers *anywhere* in the log. A context marker printed
+early (for example `[WDTMON-INCOMPLETE]` from a `final` block, or the UART-stall disarm line)
+plus an external interrupt therefore gave `CHECKED PASS (negative control)` with no failure at all.
+Reproduced: a TB that prints `[MARK]` early and calls `$fatal` much later, interrupted with
+`timeout --preserve-status -s INT 2 vvp` -> old runner `CHECKED PASS`, new runner `CHECKED FAIL`.
+
+Change (harness only, no RTL/firmware change):
+- `--expect-fail MARKER` must now be on the single terminal `FATAL:` line. A log with zero or
+  more than one `FATAL:` line fails. Logs with `VVP Stop` / `Flushing output streams` /
+  `** Continue` (interactive/interrupt output) fail.
+- New `--expect-seen MARKER` (negative mode only) for context printed elsewhere in the log.
+- Callers migrated: UART-stall m0/m1 expect `watchdog tripped unexpectedly` on the FATAL line, with
+  the disarm/PWM-zero line as `--expect-seen`; termination T2/T3 expect the TB timeout `$fatal`
+  text, with `[WDTMON-INCOMPLETE]` (and T3 `[TB] TIME LIMIT:`) as `--expect-seen`; T1 unchanged
+  (`[WDTMON-FAIL]` is already the FATAL line). `run_wdt_negative.sh` now uses the checked runner
+  instead of its own grep.
+- Runner self-test: 9 new cases (interrupt after early context marker with SIGINT and SIGTERM,
+  cause not on FATAL line, context present/missing, two FATAL lines, option misuse). The
+  interrupt, cause-not-on-FATAL and two-FATAL cases are accepted by the previous runner, i.e. the
+  new self-test fails against `dcbe761:sim/run_vvp_checked.sh` (7 of 18 cases), as intended.
+
+Results (Icarus Verilog 12.0, agent host, simulation only): runner self-test PASS (18/18);
+`make test_wdt_negative` PASS (trip on FATAL line; needed `riscv-none-elf-as` 2.44 from Alpine
+`binutils-riscv-none-elf`, firmware hex unchanged); `make test_wdt_uart_stall` m0 and m1 CHECKED PASS
+(negative control, 190 s); `make test_sim_termination` T1-T3 CHECKED PASS (negative control, 60 s);
+`make test_nav` CHECKED PASS (positive mode unchanged, 21 s); `audit_pipes` PASS. Not run: the full
+`test_rtl` set and the div217 full-window run. Harness fixes 3 and 4 are not done yet.
+
+## 9. Harness fixes 3 and 4 (2026-11-02): probe window size and sim-clock labels
+Test-harness and label changes only. No RTL, firmware or safety behaviour changed, and no
+pass/fail marker used by the Makefile changed.
+
+**Fix 3: `pwm_idle_probe.v` sampled `PROBE_WIN + 1` cycles.** The window start used `>=`, so the
+logs said "last 131073 cycles" for `PROBE_WIN=131072`. The start is now strict (`>`), the probe
+`$fatal`s if the sample count is not exactly `PROBE_WIN`, and it prints the exact window
+(`[PWMPROBE-END] window cyc=A..B (N samples, pass token at cyc=P)`). The extra sample had been a
+low cycle, so the high counts were already right; only the denominator was off by one.
+Re-run after the fix (MEASURED, simulation, exit code 0 each):
+- div 16, `CHAR_POST_PASS=200000 CHAR_PROBE_WIN=131072`: window cyc 191,201..322,272 = 131,072
+  samples (pass token cyc 122,274); L=820, R=1178 (6,256 / 8,987 ppm). Register state as in 2.3.
+- div 217, same settings: window 1,174,281..1,305,352 = 131,072 samples; L=820, R=1178.
+- div 217, `CHAR_POST_PASS=70000 CHAR_PROBE_WIN=65536`: window 1,109,817..1,175,352 = 65,536
+  samples (pass token cyc 1,105,354); L=410, R=589 (6,256 / 8,987 ppm).
+
+**Fix 4: `tb_soc_nav` time labels.** The TB clock is 50 MHz (`#10`, 20 ns), the board clock is
+25 MHz. The watchdog budget, UART divider and PWM period are all counted in clock cycles, so the
+cycle counts are **cycle-equivalent** to the board. Nominal board time = cycles / 25 MHz, which
+assumes the board clock is really 25 MHz (B1, still unverified). Every ns value the TB prints,
+including `NAV_TIME_LIMIT_NS`, is **simulation time**, half the nominal board time. `UART_DIV=217`
+is 115,200 baud only at 25 MHz (in sim time it is 230,400).
+A label bug was found as well: with `timescale 1ns/1ps`, a bare `%0t` prints picoseconds, so
+messages such as "NNA completed ... at time 1234000 ns" were 1000x too large. The TB now calls
+`$timeformat(-9, 0, " ns", 0)`, writes "sim time" and adds the cycle number to these messages, and
+prints a header line with the clock assumption, `UART_DIV` and `NAV_TIME_LIMIT_NS`. Cycle numbers in
+this document (sections 2.1 to 2.4) were already cycles and are not affected.
+
+Regressions run after fixes 3 and 4 (simulation, exit code 0 each): `make test_nav` (CHECKED PASS,
+23 s), `audit_pipes`, `test_vvp_runner` (runner self-test PASS), `test_sim_termination` (t1, t2, t3
+all fail as expected), `test_wdt_negative` (trip detected on the terminal FATAL line), and the three
+`char_pwm_idle` runs above.
+Not run in this pass: `test_wdt_uart_stall`, full-window `test_nav_div217` (1M window; still the PR
+gate, needs a normal host or CI), `test_rtl` / `all`. The new `n != PROBE_WIN` check has no
+negative test of its own.
+

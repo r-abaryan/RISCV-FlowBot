@@ -16,6 +16,19 @@
 `ifndef UART_DIV
 `define UART_DIV 16
 `endif
+// Test-only overrides (defaults unchanged): cycle budget and $time watchdog.
+// Used by make test_nav_div217 (M11b) to run at board baud (UART_DIV=217).
+`ifndef NAV_MAX_CYCLES
+`define NAV_MAX_CYCLES 1000000
+`endif
+`ifndef NAV_TIME_LIMIT_NS
+`define NAV_TIME_LIMIT_NS 30000000
+`endif
+// Extra cycles to keep simulating after the CAFEBABE token (default 0 = old
+// behaviour). Lets the firmware's post-pass banner and halt loop be observed.
+`ifndef NAV_POST_PASS_CYCLES
+`define NAV_POST_PASS_CYCLES 0
+`endif
 module tb_soc_nav;
 
     reg clk;
@@ -29,13 +42,23 @@ module tb_soc_nav;
     wire [15:0] pwm_right_cmd;
     wire actuator_disarm;
 
-    // Clock generation: 50 MHz (20ns period)
+    // Clock generation: 50 MHz SIM clock (20 ns period).
+    // M11b harness fix 4: the target board runs at 25 MHz. The WDT budget, UART
+    // divider and PWM period are all counted in clock cycles, so results here are
+    // CYCLE-EQUIVALENT to the board; nominal board time = cycles / 25 MHz (board
+    // clock frequency itself not yet verified, B1). Every ns value printed by this
+    // TB (incl. NAV_TIME_LIMIT_NS) is SIM time = half the nominal board time.
+    // UART_DIV=217 is 115200 baud only at 25 MHz (230400 baud in sim time).
     always #10 clk = ~clk;
 
-    // Testbench Watchdog Timeout (30ms simulation time)
+    // Testbench time limit, in SIM ns (default 30 ms sim time)
     initial begin
-        #30000000;
-        $fatal(1, "[TB FATAL] Navigation simulation watchdog timeout reached (30ms)!");
+        #(`NAV_TIME_LIMIT_NS);
+        // M11b M1 closure: state dump so a time-limit failure is diagnosable.
+        $display("[TB] TIME LIMIT: cycles=%0d test_passed=%0b RAM[4095]=0x%08x trap=%0b disarm=%0b wdt_expired=%0b pwm_cmd L=%0d R=%0d",
+                 cycle_count, test_passed, dut.u_ram.ram_mem[4095], dut.u_cpu.trap, actuator_disarm,
+                 dut.u_safety.flag_wdt_expired, pwm_left_cmd, pwm_right_cmd);
+        $fatal(1, "[TB FATAL] Navigation simulation watchdog timeout reached (%0d sim ns)!", `NAV_TIME_LIMIT_NS);
     end
 
     // DUT Instance with configurable ROM
@@ -86,38 +109,49 @@ module tb_soc_nav;
                 if (dut.u_nna.u_regs.reg_m_dim == 16'd2) begin
                     nna_v_history[nna_inference_count] <= dut.u_nna.u_regs.out_buf[0][7:0];
                     nna_w_history[nna_inference_count] <= dut.u_nna.u_regs.out_buf[0][15:8];
-                    $display("[TB ASSERT] NNA completed Layer 2 inference #%0d: v_raw=0x%02x, w_raw=0x%02x at time %0t ns",
+                    $display("[TB ASSERT] NNA completed Layer 2 inference #%0d: v_raw=0x%02x, w_raw=0x%02x at sim time %0t (cycle %0d)",
                              nna_inference_count + 1,
                              dut.u_nna.u_regs.out_buf[0][7:0],
                              dut.u_nna.u_regs.out_buf[0][15:8],
-                             $time);
+                             $time, cycle_count);
                     nna_inference_count <= nna_inference_count + 1;
                 end
             end
         end
     end
 
-    // Monitor PWM register writes
+    // Monitor motor COMMIT writes (M2 contract v3, offset 0x0C). On the acking edge
+    // the staged CMD_L/CMD_R are the values being committed. History index 0 is the
+    // zero COMMIT of the arm sequence (issued while disarmed, so ignored by RTL).
+    // One cycle after each armed COMMIT, ACTIVE must equal the committed pair.
+    reg        commit_chk = 1'b0;
+    reg [15:0] commit_l_q, commit_r_q;
     always @(posedge clk) begin
+        commit_chk <= 1'b0;
         if (rst_n && dut.u_pwm.wb_cyc_i && dut.u_pwm.wb_stb_i && dut.u_pwm.wb_we_i &&
-            (dut.u_pwm.wb_adr_i[7:0] == 8'h08) && dut.u_pwm.wb_ack_o) begin
-            // Captured write to DUTY_RIGHT (completes left/right pair write)
-            pwm_left_history[pwm_write_count]  <= dut.u_pwm.reg_left_duty;
-            pwm_right_history[pwm_write_count] <= dut.u_pwm.wb_dat_i[15:0];
-            $display("[TB ASSERT] PWM Duty Cycle Written #%0d: Left=0x%04x (%0d), Right=0x%04x (%0d) at time %0t ns",
-                     pwm_write_count + 1,
-                     dut.u_pwm.reg_left_duty, dut.u_pwm.reg_left_duty,
-                     dut.u_pwm.wb_dat_i[15:0], dut.u_pwm.wb_dat_i[15:0],
-                     $time);
+            (dut.u_pwm.wb_adr_i[7:0] == 8'h0C) && dut.u_pwm.wb_ack_o) begin
+            pwm_left_history[pwm_write_count]  <= dut.u_pwm.cmd_l;
+            pwm_right_history[pwm_write_count] <= dut.u_pwm.cmd_r;
+            commit_l_q <= dut.u_pwm.cmd_l;
+            commit_r_q <= dut.u_pwm.cmd_r;
+            commit_chk <= dut.u_pwm.armed;
+            $display("[TB ASSERT] Motor COMMIT #%0d: CMD_L=0x%04x (%0d), CMD_R=0x%04x (%0d) armed=%0b at sim time %0t (cycle %0d)",
+                     pwm_write_count,
+                     dut.u_pwm.cmd_l, $signed(dut.u_pwm.cmd_l),
+                     dut.u_pwm.cmd_r, $signed(dut.u_pwm.cmd_r),
+                     dut.u_pwm.armed, $time, cycle_count);
             pwm_write_count <= pwm_write_count + 1;
         end
+        if (commit_chk && (dut.u_pwm.active_l !== commit_l_q || dut.u_pwm.active_r !== commit_r_q))
+            $fatal(1, "[TB FATAL] ACTIVE != committed CMD after armed COMMIT: ACTIVE L=0x%04x R=0x%04x, CMD L=0x%04x R=0x%04x",
+                   dut.u_pwm.active_l, dut.u_pwm.active_r, commit_l_q, commit_r_q);
     end
 
     // Safety watchdog trip check (ensure watchdog never trips spuriously during valid run)
     always @(posedge clk) begin
         if (rst_n && dut.u_safety.flag_wdt_expired) begin
-            $fatal(1, "[TB FATAL] Safety watchdog tripped unexpectedly at time %0t ns! Disarm=%0b",
-                   $time, actuator_disarm);
+            $fatal(1, "[TB FATAL] Safety watchdog tripped unexpectedly at sim time %0t (cycle %0d)! Disarm=%0b",
+                   $time, cycle_count, actuator_disarm);
         end
     end
 
@@ -131,18 +165,23 @@ module tb_soc_nav;
         cycle_count = 0;
         test_passed = 0;
 
+        // %t prints in ns with the unit (the TB precision is 1 ps, so the old
+        // bare %0t printed ps values that were labelled "ns").
+        $timeformat(-9, 0, " ns", 0);
         $display("\n=======================================================");
         $display("   STARTING RISC-V ROBOT NAVIGATION SOC SIMULATION     ");
         $display("   ROM: %s", `ROM_INIT_FILE);
+        $display("   sim clk 50 MHz; results cycle-equivalent; nominal board time = cycles / 25 MHz (B1 open)");
+        $display("   UART_DIV=%0d, NAV_TIME_LIMIT_NS=%0d (sim ns)", `UART_DIV, `NAV_TIME_LIMIT_NS);
         $display("=======================================================");
 
         // Hold reset for 5 cycles
         #100;
         rst_n = 1;
-        $display("[TB] System reset deasserted at time %0t ns", $time);
+        $display("[TB] System reset deasserted at sim time %0t", $time);
 
-        // Simulation loop with 1,000,000 cycle timeout
-        while (cycle_count < 1000000 && !test_passed) begin
+        // Simulation loop with NAV_MAX_CYCLES timeout (default 1,000,000)
+        while (cycle_count < `NAV_MAX_CYCLES && !test_passed) begin
             @(posedge clk);
             cycle_count = cycle_count + 1;
 
@@ -151,6 +190,9 @@ module tb_soc_nav;
                 test_passed = 1;
             end
         end
+
+        // Optional post-pass observation window (test-only, default 0)
+        if (test_passed) repeat (`NAV_POST_PASS_CYCLES) @(posedge clk);
 
         // Wait a few cycles for final UART flush
         #500;
@@ -188,42 +230,43 @@ module tb_soc_nav;
             end
             $display(" [ASSERT 4 PASS] Cycle 3 raw policy output verified: v=0x17 (+23), w=0x41 (+65)");
 
-            // 3. Assert Motor PWM commands and Safety Interlock
-            // History index 0 is initial zero PWM. Index 1, 2, 3 correspond to Cycle 1, 2, 3.
-            // M7B: expected values include the firmware safety filter (clamp 64, slew 8/tick,
-            // proximity). Cycle1: v 23->8 (slew), w=7. Cycle2: v -24->0 (slew from 8), w 127->64->15.
-            // Cycle3: wall at ~11 cm -> v=0, w 65->64->23. Reference: sw/test/test_nav_expected.py
-            // Cycle 1 PWM: forward drive with small right bias (w=+7)
-            if (pwm_left_history[1] != 16'h01f7 || pwm_right_history[1] != 16'h022e) begin
-                $fatal(1, "[TB FATAL] Cycle 1 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x01f7, 0x022e)",
+            // 3. Assert motor commands (M2 contract v3 signed CMD words) and safety interlock.
+            // History index 0 = zero COMMIT of the arm sequence; 1..3 = nav cycles 1..3.
+            // Firmware safety filter (clamp 64, slew 8/tick, proximity): Cycle1 v 23->8, w=7.
+            // Cycle2 v -24->0, w 127->64->15. Cycle3 wall ~11 cm -> v=0, w 65->64->23.
+            // cmd = sign(x)*min(1000,(|x|*1000)>>7), x = v-w (L), v+w (R).
+            // Reference: sw/test/test_nav_expected.py (uses sw/test/motor_cmd_ref.py).
+            if (pwm_write_count != 4)
+                $fatal(1, "[TB FATAL] expected 4 motor COMMITs (1 arm-zero + 3 nav), got %0d", pwm_write_count);
+            if (pwm_left_history[0] != 16'h0000 || pwm_right_history[0] != 16'h0000)
+                $fatal(1, "[TB FATAL] arm-sequence COMMIT not zero: L=0x%04x R=0x%04x", pwm_left_history[0], pwm_right_history[0]);
+            if (pwm_left_history[1] != 16'h0007 || pwm_right_history[1] != 16'h0075) begin
+                $fatal(1, "[TB FATAL] Cycle 1 CMD mismatch: got L=0x%04x, R=0x%04x (expected 0x0007, 0x0075)",
                        pwm_left_history[1], pwm_right_history[1]);
             end
-            $display(" [ASSERT 5 PASS] Cycle 1 PWM balanced forward drive: L=0x%04x, R=0x%04x",
-                     pwm_left_history[1], pwm_right_history[1]);
+            $display(" [ASSERT 5 PASS] Cycle 1 CMD forward drive, small right bias: L=%0d, R=%0d",
+                     $signed(pwm_left_history[1]), $signed(pwm_right_history[1]));
 
-            // Cycle 2 PWM: differential steer right (Right > Left, slew-limited)
-            if (pwm_left_history[2] != 16'h01b9 || pwm_right_history[2] != 16'h022e) begin
-                $fatal(1, "[TB FATAL] Cycle 2 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x01b9, 0x022e)",
+            if (pwm_left_history[2] != 16'hff8b || pwm_right_history[2] != 16'h0075) begin
+                $fatal(1, "[TB FATAL] Cycle 2 CMD mismatch: got L=0x%04x, R=0x%04x (expected 0xff8b, 0x0075)",
                        pwm_left_history[2], pwm_right_history[2]);
             end
-            $display(" [ASSERT 6 PASS] Cycle 2 PWM slew-limited right turn: L=0x01b9, R=0x%04x", pwm_right_history[2]);
+            $display(" [ASSERT 6 PASS] Cycle 2 CMD slew-limited turn in place: L=%0d, R=%0d",
+                     $signed(pwm_left_history[2]), $signed(pwm_right_history[2]));
 
-            // Cycle 3 Safety Override: front wall obstacle triggered firmware clamp
-            // v_cmd clamped to 0, differential turn in place
-            if (pwm_left_history[3] != 16'h019a || pwm_right_history[3] != 16'h024d) begin
-                $fatal(1, "[TB FATAL] Cycle 3 PWM mismatch: got L=0x%04x, R=0x%04x (expected 0x019a, 0x024d)",
+            if (pwm_left_history[3] != 16'hff4d || pwm_right_history[3] != 16'h00b3) begin
+                $fatal(1, "[TB FATAL] Cycle 3 CMD mismatch: got L=0x%04x, R=0x%04x (expected 0xff4d, 0x00b3)",
                        pwm_left_history[3], pwm_right_history[3]);
             end
-            // Stronger check: with raw v=+23, w=+65 and NO clamp the duties would be
-            // L=((23-65+128)*1000)>>8=0x014f, R=((23+65+128)*1000)>>8=0x034b. Require
-            // the clamp took effect (v=0 => L+R = 2*128*1000/256 within rounding of 1000).
-            if (pwm_left_history[3] == 16'h014f || pwm_right_history[3] == 16'h034b) begin
-                $fatal(1, "[TB FATAL] Cycle 3 PWM equals the UNCLAMPED value: safety override did not act");
-            end
-            if (pwm_left_history[3] + pwm_right_history[3] < 16'd998 || pwm_left_history[3] + pwm_right_history[3] > 16'd1000) begin
-                $fatal(1, "[TB FATAL] Cycle 3 L+R=%0d, not consistent with v_safe=0", pwm_left_history[3] + pwm_right_history[3]);
-            end
-            $display(" [ASSERT 7 PASS] Cycle 3 Safety Override verified: v_cmd clamped to 0, PWM L=0x019a, R=0x024d");
+            // Unclamped (raw v=+23, w=+65, no filter) would be L=cmd(-42)=-328 (0xfeb8),
+            // R=cmd(88)=687 (0x02af). v_safe=0 requires L == -R exactly.
+            if (pwm_left_history[3] == 16'hfeb8 || pwm_right_history[3] == 16'h02af)
+                $fatal(1, "[TB FATAL] Cycle 3 CMD equals the UNCLAMPED value: safety override did not act");
+            if ($signed(pwm_left_history[3]) != -$signed(pwm_right_history[3]))
+                $fatal(1, "[TB FATAL] Cycle 3 L=%0d R=%0d, not consistent with v_safe=0",
+                       $signed(pwm_left_history[3]), $signed(pwm_right_history[3]));
+            $display(" [ASSERT 7 PASS] Cycle 3 Safety Override verified: v_cmd clamped to 0, CMD L=%0d, R=%0d",
+                     $signed(pwm_left_history[3]), $signed(pwm_right_history[3]));
 
             // Final safety state assertions
             if (actuator_disarm != 1'b0) begin

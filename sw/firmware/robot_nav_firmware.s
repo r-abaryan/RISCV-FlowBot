@@ -21,13 +21,21 @@ _start:
     /* Initialize stack pointer to top of 16KB SRAM */
     li   sp, 0x20003FFC
 
+    /* Watchdog budget (M11b). CLK_HZ is the NOMINAL ULX3S 25 MHz oscillator used
+     * directly by fpga/ulx3s/ulx3s_top.v (no PLL); it is NOT yet measured on the
+     * board (B1/U5 open). The timeout value itself is unchanged (500,000 cycles);
+     * only its derivation and comment are corrected (old comment said 50 MHz). */
+    .equ CLK_HZ,             25000000
+    .equ WDT_TIMEOUT_MS,     20
+    .equ WDT_TIMEOUT_CYCLES, (CLK_HZ / 1000) * WDT_TIMEOUT_MS
+
     /* ------------------------------------------------------------------------
      * 1. Initialize Hardware Safety Interlock
      * ------------------------------------------------------------------------ */
     /* Offsets per rtl/safety/safety_filter.v (M7A): 0x00 CTRL, 0x04 HEARTBEAT,
      * 0x08 STATUS (RO), 0x0C TIMEOUT. Sequence: timeout, enable|clear, heartbeat. */
     li   t0, 0x50000600       /* ADDR_SAFETY_BASE */
-    li   t1, 500000           /* Watchdog limit (500k cycles = 10 ms @ 50 MHz) */
+    li   t1, WDT_TIMEOUT_CYCLES /* 500,000 cycles = 20 ms at the nominal 25 MHz ULX3S clock */
     sw   t1, 0x0C(t0)         /* SAFETY_TIMEOUT */
     li   t1, 3                /* enable | clear trip */
     sw   t1, 0x00(t0)         /* SAFETY_CTRL */
@@ -40,13 +48,33 @@ _start:
     sw   zero, 4(t0)
 
     /* ------------------------------------------------------------------------
-     * 2. Initialize Dual PWM Motor Controller
+     * 2. Motor PWM (soc_pwm, M2 contract v3): exact zero-command arming
+     *    sequence (M2_STEP1_DECISIONS.md sec. C). SIMULATION ONLY.
+     *    1 FAULT_CLR  2 CMD_L=CMD_R=0  3 COMMIT (disarmed: ignored)
+     *    4 poll STATUS.SHADOW_ZERO  5 ARM_REQ  -> check STATUS.ARMED
+     *    If ARM is refused the firmware never commands motion: it prints
+     *    msg_arm_fail and goes to halt_loop (no PASS token).
      * ------------------------------------------------------------------------ */
     li   t0, 0x50000200       /* ADDR_PWM_BASE */
-    li   t1, 1                /* Enable bit = 1 */
-    sw   t1, 0x00(t0)         /* PWM_REG_CTRL = enable */
-    sw   zero, 0x04(t0)       /* PWM_REG_DUTY_LEFT = 0 */
-    sw   zero, 0x08(t0)       /* PWM_REG_DUTY_RIGHT = 0 */
+    li   t1, 4
+    sw   t1, 0x00(t0)         /* CTRL.FAULT_CLR */
+    sw   zero, 0x04(t0)       /* CMD_L = 0 */
+    sw   zero, 0x08(t0)       /* CMD_R = 0 */
+    sw   zero, 0x0C(t0)       /* COMMIT (ignored while disarmed) */
+    li   t2, 0x200            /* STATUS bit9 SHADOW_ZERO */
+arm_wait_shadow:
+    lw   t1, 0x10(t0)
+    and  t1, t1, t2
+    beqz t1, arm_wait_shadow
+    li   t1, 1
+    sw   t1, 0x00(t0)         /* CTRL.ARM_REQ */
+    lw   t1, 0x10(t0)
+    andi t1, t1, 1            /* STATUS bit0 ARMED */
+    bnez t1, arm_ok
+    la   a0, msg_arm_fail
+    jal  ra, uart_puts
+    j    halt_loop
+arm_ok:
 
     /* ------------------------------------------------------------------------
      * 3. Print Boot Banner over UART
@@ -87,6 +115,13 @@ _start:
     /* ------------------------------------------------------------------------
      * All Cases Complete - Print Pass Banner
      * ------------------------------------------------------------------------ */
+    /* Navigation done: DISARM the motor PWM (KILL -> ARMED/ACTIVE/SHADOW/CMD=0)
+     * before the idle loop, so the stale timer cannot fire while idle and the
+     * pins are at the zero state. */
+    li   t0, 0x50000200
+    li   t1, 2
+    sw   t1, 0x00(t0)         /* CTRL.DISARM */
+
     /* Write completion token 0xCAFEBABE to RAM at 0x20003FFC */
     li   t0, 0x20003FFC
     li   t1, 0xCAFEBABE
@@ -331,48 +366,23 @@ safety_pass:
     sw   t1, 0(t0)
 
     /* ------------------------------------------------------------------------
-     * STEP D: Differential Drive Kinematics & Motor PWM Generation
-     * v_L = v_safe - w_raw
-     * v_R = v_safe + w_raw
-     * Map signed [-128..127] to PWM Duty [0..1000]:
-     * duty = ((v_wheel + 128) * 1000) / 256
+     * STEP D: Differential drive + M2 sign-magnitude motor command (contract v3)
+     * v_L = v_safe - w_raw, v_R = v_safe + w_raw
+     * cmd = sign(v) * min(1000, (|v|*1000) >> 7)   (motor_cmd_conv, V-CONV)
+     * Write CMD_L, CMD_R then COMMIT (atomic ACTIVE update, stale reload).
+     * Telemetry PWM_L/PWM_R now print the signed CMD words (two's complement).
      * ------------------------------------------------------------------------ */
-    sub  t2, s2, s3           /* t2 = v_L */
-    add  t3, s2, s3           /* t3 = v_R */
+    sub  a0, s2, s3           /* v_L */
+    jal  ra, motor_cmd_conv
+    mv   s4, a0               /* s4 = cmd_L */
+    add  a0, s2, s3           /* v_R */
+    jal  ra, motor_cmd_conv
+    mv   s1, a0               /* s1 = cmd_R */
 
-    /* Compute Duty Left */
-    addi t2, t2, 128
-    li   t4, 1000
-    mul  t2, t2, t4
-    srai t2, t2, 8            /* / 256 */
-    /* Clamp 0..1000 */
-    bgez t2, clamp_l_min
-    li   t2, 0
-clamp_l_min:
-    ble  t2, t4, clamp_l_max
-    mv   t2, t4
-clamp_l_max:
-
-    /* Compute Duty Right */
-    addi t3, t3, 128
-    mul  t3, t3, t4
-    srai t3, t3, 8            /* / 256 */
-    /* Clamp 0..1000 */
-    bgez t3, clamp_r_min
-    li   t3, 0
-clamp_r_min:
-    ble  t3, t4, clamp_r_max
-    mv   t3, t4
-clamp_r_max:
-
-    /* Write to PWM registers */
     li   t0, 0x50000200
-    sw   t2, 0x04(t0)         /* DUTY_LEFT */
-    sw   t3, 0x08(t0)         /* DUTY_RIGHT */
-
-    /* Save computed values for telemetry: s2=v, s3=w, s4=duty_L, t3=duty_R */
-    mv   s4, t2
-    mv   s1, t3
+    sw   s4, 0x04(t0)         /* CMD_L */
+    sw   s1, 0x08(t0)         /* CMD_R */
+    sw   zero, 0x0C(t0)       /* COMMIT */
 
     /* ------------------------------------------------------------------------
      * STEP E: Print Telemetry over UART
@@ -412,8 +422,16 @@ clamp_r_max:
 /* ============================================================================
  * UART Helper Functions
  * ============================================================================ */
+/* M11b: uart_puts blocks on TX-busy for every byte. Without a heartbeat here a
+ * long string (e.g. the 162-byte pass banner) at the board divider 217 holds the
+ * CPU ~351k cycles without kicking, and the watchdog expired after PASS.
+ * The key is written once per byte, only AFTER the TX-busy wait completes, so a
+ * UART that never becomes ready still stops the heartbeat and trips the watchdog.
+ * Worst-case kick gap inside this loop is ~1 byte time (10 * divider cycles).
+ * Clobbers t0-t3, a0 (caller-saved). */
 uart_puts:
     li   t0, 0x50000100       /* UART Base */
+    li   t3, 0x5AFEC0DE       /* heartbeat key */
 puts_loop:
     lbu  t1, 0(a0)
     beqz t1, puts_done
@@ -421,6 +439,8 @@ puts_wait:
     lw   t2, 0x08(t0)         /* Status */
     andi t2, t2, 1            /* TX busy */
     bnez t2, puts_wait
+    li   t2, 0x50000604       /* SAFETY_HEARTBEAT */
+    sw   t3, 0(t2)            /* kick: UART made progress */
     sw   t1, 0x00(t0)         /* Send character */
     addi a0, a0, 1
     j    puts_loop
@@ -465,12 +485,16 @@ uart_puthex_word:
     addi sp, sp, 16
     ret
 
+/* Clobbers t0-t3 (caller-saved). Same heartbeat rule as uart_puts. */
 uart_put_nibble:
     li   t0, 0x50000100
 wait_nib:
     lw   t1, 0x08(t0)
     andi t1, t1, 1
     bnez t1, wait_nib
+    li   t2, 0x50000604       /* SAFETY_HEARTBEAT: kick after TX-ready (M11b) */
+    li   t3, 0x5AFEC0DE
+    sw   t3, 0(t2)
     la   t2, hex_digits
     add  t2, t2, a0
     lbu  t3, 0(t2)
@@ -480,6 +504,9 @@ wait_nib:
 /* ============================================================================
  * Constant Data & Weights
  * ============================================================================ */
+/* M2 wheel-command conversion (leaf, clobbers t0,t1,a0) */
+    .include "motor_cmd.inc"
+
     .section .rodata
 .balign 4
 hex_digits:
@@ -511,6 +538,9 @@ msg_telem_pwm_l:
 
 msg_telem_pwm_r:
     .asciz " | PWM_R: 0x"
+
+msg_arm_fail:
+    .asciz "[MOTOR] ARM refused - no motion commanded\n"
 
 msg_newline:
     .asciz "\n\n"

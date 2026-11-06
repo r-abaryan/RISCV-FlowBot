@@ -55,6 +55,24 @@ banner_wait3:
     li t0, 1
     sw t0, 0x08(s1)
 
+    /* 4b. Motor PWM (soc_pwm, M2 contract v3) exact zero-command arming
+       sequence (M2_STEP1_DECISIONS.md sec. C). SIMULATION ONLY.
+       ARM refused -> skip to spin_loop without the CAFEBABE token (TB fails). */
+    li t0, 4
+    sw t0, 0(s3)        /* CTRL.FAULT_CLR */
+    sw zero, 0x04(s3)   /* CMD_L = 0 */
+    sw zero, 0x08(s3)   /* CMD_R = 0 */
+    sw zero, 0x0C(s3)   /* COMMIT (ignored while disarmed) */
+arm_wait_shadow:
+    lw t1, 0x10(s3)
+    andi t1, t1, 512    /* STATUS bit9 SHADOW_ZERO */
+    beqz t1, arm_wait_shadow
+    li t0, 1
+    sw t0, 0(s3)        /* CTRL.ARM_REQ */
+    lw t1, 0x10(s3)
+    andi t1, t1, 1      /* STATUS bit0 ARMED */
+    beqz t1, spin_loop
+
     /* 5. Load Input Features into NNA Input Buffer (NNA_BASE + 0x100) */
     /* Feature vector: [0x14, 0xEC, 0x28, 0xD8] = [20, -20, 40, -40] packed as 0xD828EC14 */
     li t0, 0xD828EC14
@@ -128,13 +146,15 @@ apply_motor:
     /* Write safe commanded velocity to Motor 0 Register (SAFETY_BASE + 0x10) */
     sw t0, 0x10(s1)
 
-    /* Set PWM Channel 0 Duty Cycle */
-    /* Convert [-64, 64] to positive duty: duty = t0 + 64 */
-    addi t2, t0, 64
-    sw t2, 0x04(s3)
+    /* Left motor signed command (contract v3, sign-magnitude, |cmd|<=1000):
+       the clamped velocity [-64, 64] is written directly as CMD_L, CMD_R = 0,
+       then COMMIT. (Old map: duty = t0 + 64 on the removed duty register.) */
+    sw t0, 0x04(s3)     /* CMD_L */
+    sw zero, 0x08(s3)   /* CMD_R */
+    sw zero, 0x0C(s3)   /* COMMIT */
 
-    /* Enable PWM: PWM_CTRL = 1 */
-    li t3, 1
+    /* DISARM before idling (ARMED/ACTIVE/SHADOW/CMD -> 0) */
+    li t3, 2
     sw t3, 0(s3)
 
     /* Send Completion Character 'K' to UART */
